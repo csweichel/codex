@@ -1,0 +1,34 @@
+tasks:
+  setup-rust:
+    name: Setup Rust toolchain
+    description: Add musl target and install cargo helpers.
+    command: |
+      ARCH=$(uname -m)
+      if [ "$ARCH" = "x86_64" ]; then
+        rustup target add x86_64-unknown-linux-musl
+      else
+        rustup target add aarch64-unknown-linux-musl
+      fi
+      rustup component add clippy rustfmt
+      curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+    triggeredBy:
+      - postDevcontainerStart
+
+  setup-node:
+    name: Setup Node.js / pnpm
+    description: Enable corepack and install pnpm dependencies.
+    command: |
+      sudo corepack enable
+      pnpm install --frozen-lockfile 2>/dev/null || pnpm install || true
+    triggeredBy:
+      - postDevcontainerStart
+
+  fetch-rust-deps:
+    name: Fetch Rust dependencies
+    description: Pre-fetch all Rust crate dependencies.
+    command: |
+      cd codex-rs && cargo fetch
+    triggeredBy:
+      - postDevcontainerStart
+    dependsOn:
+      - setup-rust

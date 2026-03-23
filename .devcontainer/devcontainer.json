@@ -1,21 +1,17 @@
 {
   "name": "Codex",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "..",
-    "platform": "linux/arm64"
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/rust": {},
+    "ghcr.io/devcontainers/features/node": {
+      "version": "22"
+    }
   },
-
-  /* Force VS Code to run the container as arm64 in
-     case your host is x86 (or vice-versa). */
-  "runArgs": ["--platform=linux/arm64"],
-
+  "onCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libcap-dev clang musl-tools libssl-dev && sudo rm -rf /var/lib/apt/lists/* && curl -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin",
   "containerEnv": {
-    "RUST_BACKTRACE": "1",
-    "CARGO_TARGET_DIR": "${containerWorkspaceFolder}/codex-rs/target-arm64"
+    "RUST_BACKTRACE": "1"
   },
-
-  "remoteUser": "ubuntu",
+  "remoteUser": "vscode",
   "customizations": {
     "vscode": {
       "settings": {
