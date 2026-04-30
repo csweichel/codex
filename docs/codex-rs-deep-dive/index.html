@@ -1,0 +1,2919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>codex-rs Deep Dive</title>
+  <style>
+    :root {
+      --bg: #f3ece1;
+      --bg-2: #e8ddd0;
+      --panel: rgba(255, 250, 244, 0.88);
+      --panel-strong: rgba(255, 248, 239, 0.96);
+      --ink: #1f1c18;
+      --ink-soft: #5a5148;
+      --line: #d8cab8;
+      --line-strong: #b89c7d;
+      --accent: #a33f15;
+      --accent-2: #0f5e5f;
+      --accent-3: #836114;
+      --ok: #22653a;
+      --warn: #915816;
+      --bad: #8d2c1d;
+      --shadow: 0 18px 55px rgba(44, 25, 13, 0.14);
+      --radius: 20px;
+      --radius-sm: 14px;
+      --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", serif;
+      --body: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+      --mono: "Iosevka", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sidebar-width: 320px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--body);
+      background:
+        radial-gradient(circle at top left, rgba(163, 63, 21, 0.11), transparent 30%),
+        radial-gradient(circle at top right, rgba(15, 94, 95, 0.11), transparent 26%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.05)),
+        linear-gradient(135deg, var(--bg), var(--bg-2));
+      min-height: 100vh;
+      line-height: 1.55;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(53, 34, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(53, 34, 20, 0.035) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(circle at center, black, transparent 88%);
+      opacity: 0.6;
+    }
+
+    a {
+      color: var(--accent-2);
+      text-decoration-color: rgba(15, 94, 95, 0.35);
+    }
+
+    a:hover {
+      text-decoration-color: var(--accent-2);
+    }
+
+    code,
+    pre,
+    kbd {
+      font-family: var(--mono);
+    }
+
+    .layout {
+      width: min(1640px, calc(100vw - 32px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      gap: 20px;
+      padding: 20px 0 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      align-self: start;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(184, 156, 125, 0.42);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      border-radius: var(--radius);
+    }
+
+    .panel-strong {
+      background: var(--panel-strong);
+    }
+
+    .sidebar .panel {
+      padding: 18px 18px 20px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(163, 63, 21, 0.08);
+      border: 1px solid rgba(163, 63, 21, 0.16);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand {
+      display: grid;
+      gap: 12px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 30px;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 14px;
+    }
+
+    .meta-list,
+    .stat-grid,
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .meta-pill,
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.5);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .meta-pill strong,
+    .chip strong {
+      color: var(--ink);
+    }
+
+    .search-box {
+      display: grid;
+      gap: 10px;
+    }
+
+    .search-box label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-soft);
+    }
+
+    input[type="search"] {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--ink);
+      font: inherit;
+      outline: none;
+    }
+
+    input[type="search"]:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 4px rgba(15, 94, 95, 0.12);
+    }
+
+    .control-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button,
+    .button-link {
+      appearance: none;
+      border: 1px solid rgba(163, 63, 21, 0.26);
+      background: rgba(255, 248, 240, 0.78);
+      color: var(--ink);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+    }
+
+    button:hover,
+    .button-link:hover {
+      transform: translateY(-1px);
+      border-color: rgba(163, 63, 21, 0.44);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, rgba(163, 63, 21, 0.92), rgba(129, 47, 19, 0.92));
+      border-color: rgba(129, 47, 19, 0.82);
+      color: #fff8f3;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .nav-link {
+      display: grid;
+      gap: 6px;
+      text-decoration: none;
+      color: inherit;
+      padding: 12px 13px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.42);
+      transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      border-color: rgba(15, 94, 95, 0.25);
+      background: rgba(255, 255, 255, 0.8);
+      transform: translateX(2px);
+    }
+
+    .nav-link .title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .nav-link .subtitle {
+      color: var(--ink-soft);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 94, 95, 0.3);
+      background: rgba(15, 94, 95, 0.08);
+      color: var(--accent-2);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .badge.done {
+      background: rgba(34, 101, 58, 0.12);
+      border-color: rgba(34, 101, 58, 0.32);
+      color: var(--ok);
+    }
+
+    .progress-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+
+    .progress-track {
+      height: 12px;
+      background: rgba(84, 56, 31, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(184, 156, 125, 0.35);
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 180ms ease;
+    }
+
+    .main {
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero {
+      padding: 28px;
+      display: grid;
+      gap: 24px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.9fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .hero h2 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(38px, 5vw, 68px);
+      line-height: 0.92;
+      letter-spacing: -0.04em;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-copy p {
+      margin: 0;
+      max-width: 68ch;
+      color: var(--ink-soft);
+      font-size: 17px;
+    }
+
+    .hero-card {
+      padding: 18px;
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 248, 239, 0.94)),
+        rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(184, 156, 125, 0.42);
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero-card h3,
+    .lesson h3,
+    .lesson h4,
+    .quiz h4,
+    .ladder-detail h3 {
+      margin: 0;
+      font-family: var(--display);
+      letter-spacing: -0.02em;
+    }
+
+    .hero-card h3 {
+      font-size: 24px;
+    }
+
+    .hero-card p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 14px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(249, 242, 233, 0.95);
+      border: 1px solid rgba(184, 156, 125, 0.34);
+    }
+
+    .stat .value {
+      font-family: var(--display);
+      font-size: 28px;
+      line-height: 1;
+      color: var(--accent);
+    }
+
+    .stat .label {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--ink-soft);
+    }
+
+    .section {
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+      scroll-margin-top: 20px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .section-title-group {
+      display: grid;
+      gap: 10px;
+      max-width: 80ch;
+    }
+
+    .section-title {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(28px, 3.2vw, 42px);
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+    }
+
+    .section-summary {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 15px;
+    }
+
+    .section-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card,
+    .lesson-card,
+    .quiz,
+    .callout,
+    .ladder-shell,
+    .api-shell {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 252, 247, 0.88);
+      border: 1px solid rgba(184, 156, 125, 0.36);
+    }
+
+    .card h3,
+    .lesson-card h3,
+    .callout h3,
+    .quiz h4 {
+      font-size: 22px;
+    }
+
+    .card p,
+    .lesson-card p,
+    .callout p,
+    .card li,
+    .lesson-card li,
+    .callout li {
+      color: var(--ink-soft);
+      margin: 0;
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .tight {
+      display: grid;
+      gap: 8px;
+    }
+
+    .key-files {
+      display: grid;
+      gap: 8px;
+    }
+
+    .file-pill {
+      display: block;
+      padding: 11px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 94, 95, 0.18);
+      background: rgba(15, 94, 95, 0.05);
+    }
+
+    .file-pill code {
+      display: block;
+      font-size: 13px;
+      color: var(--accent-2);
+      word-break: break-word;
+    }
+
+    .file-pill span {
+      display: block;
+      color: var(--ink-soft);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .ladder-shell {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .ladder-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .ladder-step {
+      text-align: left;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(184, 156, 125, 0.3);
+      background: rgba(255, 255, 255, 0.72);
+      display: grid;
+      gap: 5px;
+    }
+
+    .ladder-step.active {
+      border-color: rgba(163, 63, 21, 0.42);
+      background: rgba(255, 246, 240, 0.95);
+      box-shadow: inset 0 0 0 1px rgba(163, 63, 21, 0.12);
+    }
+
+    .ladder-step small {
+      color: var(--ink-soft);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .ladder-step strong {
+      font-size: 15px;
+      color: var(--ink);
+    }
+
+    .ladder-step span {
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .ladder-detail {
+      display: grid;
+      gap: 14px;
+      min-height: 280px;
+    }
+
+    .ladder-detail h3 {
+      font-size: 28px;
+    }
+
+    .ladder-detail p {
+      margin: 0;
+      color: var(--ink-soft);
+    }
+
+    .ladder-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mini-card {
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(184, 156, 125, 0.3);
+    }
+
+    .mini-card h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      font-family: var(--display);
+    }
+
+    .mini-card ul,
+    .card ul,
+    .lesson-card ul,
+    .callout ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .flow {
+      display: grid;
+      gap: 12px;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 14px 14px 14px 48px;
+      border-radius: 15px;
+      border: 1px solid rgba(184, 156, 125, 0.32);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .flow-step::before {
+      content: attr(data-step);
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(163, 63, 21, 0.12);
+      border: 1px solid rgba(163, 63, 21, 0.3);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--ink);
+    }
+
+    .flow-step p {
+      margin: 0;
+      color: var(--ink-soft);
+    }
+
+    .primer {
+      border-radius: 16px;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(15, 94, 95, 0.08), rgba(15, 94, 95, 0.03));
+      border: 1px solid rgba(15, 94, 95, 0.18);
+    }
+
+    .primer h3 {
+      color: var(--accent-2);
+    }
+
+    details {
+      border-radius: 16px;
+      border: 1px solid rgba(184, 156, 125, 0.36);
+      background: rgba(255, 255, 255, 0.62);
+      overflow: hidden;
+    }
+
+    summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      color: var(--ink);
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details .details-body {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 14px;
+      color: var(--ink-soft);
+    }
+
+    .details-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-soft);
+    }
+
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+      font-size: 14px;
+    }
+
+    .compare-table th,
+    .compare-table td {
+      border: 1px solid rgba(184, 156, 125, 0.28);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .compare-table th {
+      background: rgba(15, 94, 95, 0.08);
+      color: var(--accent-2);
+      font-weight: 800;
+    }
+
+    .api-shell {
+      display: grid;
+      gap: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tab {
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(184, 156, 125, 0.34);
+      background: rgba(255, 255, 255, 0.72);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .tab.active {
+      background: rgba(163, 63, 21, 0.12);
+      border-color: rgba(163, 63, 21, 0.35);
+      color: var(--accent);
+    }
+
+    .tab-panel {
+      display: none;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .tab-panel.active {
+      display: grid;
+    }
+
+    .code-box {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(28, 28, 28, 0.08);
+      background: #201913;
+      color: #f7efe5;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.55;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .code-box .comment {
+      color: #c0b0a1;
+    }
+
+    .inline-code {
+      padding: 0.18em 0.42em;
+      border-radius: 8px;
+      background: rgba(32, 25, 19, 0.08);
+      border: 1px solid rgba(32, 25, 19, 0.12);
+    }
+
+    .callout {
+      background:
+        linear-gradient(135deg, rgba(163, 63, 21, 0.08), rgba(163, 63, 21, 0.03)),
+        rgba(255, 252, 247, 0.88);
+    }
+
+    .callout.warn {
+      background:
+        linear-gradient(135deg, rgba(145, 88, 22, 0.12), rgba(145, 88, 22, 0.03)),
+        rgba(255, 252, 247, 0.88);
+    }
+
+    .callout.ok {
+      background:
+        linear-gradient(135deg, rgba(34, 101, 58, 0.1), rgba(34, 101, 58, 0.03)),
+        rgba(255, 252, 247, 0.88);
+    }
+
+    .quiz {
+      display: grid;
+      gap: 16px;
+    }
+
+    .quiz h4 {
+      font-size: 24px;
+    }
+
+    .quiz-question {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(184, 156, 125, 0.28);
+      display: grid;
+      gap: 12px;
+    }
+
+    .quiz-question p {
+      margin: 0;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .quiz-options {
+      display: grid;
+      gap: 8px;
+    }
+
+    .quiz-option {
+      display: flex;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(184, 156, 125, 0.25);
+      background: rgba(255, 255, 255, 0.72);
+      cursor: pointer;
+    }
+
+    .quiz-option input {
+      margin-top: 4px;
+    }
+
+    .quiz-result {
+      min-height: 24px;
+      font-weight: 700;
+    }
+
+    .quiz-explanation {
+      display: none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(15, 94, 95, 0.06);
+      border: 1px solid rgba(15, 94, 95, 0.18);
+      color: var(--ink-soft);
+    }
+
+    .quiz-explanation.visible {
+      display: block;
+    }
+
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .glossary-item {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(184, 156, 125, 0.28);
+    }
+
+    .glossary-item strong {
+      display: block;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .hidden-by-search {
+      display: none !important;
+    }
+
+    .footer-note {
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    @media (max-width: 1260px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 960px) {
+      .hero-grid,
+      .ladder-shell,
+      .ladder-columns,
+      .glossary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card-grid,
+      .tab-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .span-3,
+      .span-4,
+      .span-5,
+      .span-6,
+      .span-7,
+      .span-8,
+      .span-12 {
+        grid-column: span 1;
+      }
+
+      .section {
+        padding: 20px;
+      }
+
+      .hero {
+        padding: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <section class="panel panel-strong brand">
+        <span class="eyebrow">codex-rs architecture</span>
+        <h1>Deep Dive Guide</h1>
+        <p>
+          Interactive onboarding and reference for the Rust implementation of Codex.
+          Built from the current repository structure and key implementation paths.
+        </p>
+        <div class="meta-list">
+          <span class="meta-pill"><strong>105</strong> workspace members</span>
+          <span class="meta-pill"><strong>2</strong> protocol layers</span>
+          <span class="meta-pill"><strong>8</strong> lessons</span>
+        </div>
+      </section>
+
+      <section class="panel search-box">
+        <label for="search">Search this guide</label>
+        <input id="search" type="search" placeholder="Search crates, concepts, APIs, files..." />
+        <div class="control-row">
+          <button id="toggle-details">Expand all details</button>
+          <button id="toggle-primers">Hide Rust primers</button>
+        </div>
+      </section>
+
+      <section class="panel progress-panel">
+        <div class="progress-label">
+          <span>Guide progress</span>
+          <strong id="progress-text">0 / 8 complete</strong>
+        </div>
+        <div class="progress-track">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <p class="footer-note">
+          Mark lessons complete as you go. Progress is stored in this browser.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="section-title-group">
+          <span class="eyebrow">Jump to lesson</span>
+          <p class="section-summary">
+            Read linearly, or jump directly to the layer you care about.
+          </p>
+        </div>
+        <nav id="lesson-nav" class="nav-list">
+          <a class="nav-link" href="#lesson-1" data-target="lesson-1">
+            <div class="title"><span>1. Workspace and Rust basics</span><span class="badge" data-default-badge="L1">L1</span></div>
+            <div class="subtitle">How the repo is organized and how to read Rust at all.</div>
+          </a>
+          <a class="nav-link" href="#lesson-2" data-target="lesson-2">
+            <div class="title"><span>2. Entry surfaces</span><span class="badge" data-default-badge="L2">L2</span></div>
+            <div class="subtitle">How `codex`, TUI, exec, and app-server start.</div>
+          </a>
+          <a class="nav-link" href="#lesson-3" data-target="lesson-3">
+            <div class="title"><span>3. Vocabulary and protocols</span><span class="badge" data-default-badge="L3">L3</span></div>
+            <div class="subtitle">Internal queue protocol vs external JSON-RPC.</div>
+          </a>
+          <a class="nav-link" href="#lesson-4" data-target="lesson-4">
+            <div class="title"><span>4. Threads, sessions, ownership</span><span class="badge" data-default-badge="L4">L4</span></div>
+            <div class="subtitle">`ThreadManager`, `CodexThread`, `Codex`, `Session`.</div>
+          </a>
+          <a class="nav-link" href="#lesson-5" data-target="lesson-5">
+            <div class="title"><span>5. Turn execution loop</span><span class="badge" data-default-badge="L5">L5</span></div>
+            <div class="subtitle">What happens after a prompt is submitted.</div>
+          </a>
+          <a class="nav-link" href="#lesson-6" data-target="lesson-6">
+            <div class="title"><span>6. Tools, MCP, sandbox, approvals</span><span class="badge" data-default-badge="L6">L6</span></div>
+            <div class="subtitle">How Codex is allowed to do things.</div>
+          </a>
+          <a class="nav-link" href="#lesson-7" data-target="lesson-7">
+            <div class="title"><span>7. App-server and clients</span><span class="badge" data-default-badge="L7">L7</span></div>
+            <div class="subtitle">Why TUI and exec both speak app-server.</div>
+          </a>
+          <a class="nav-link" href="#lesson-8" data-target="lesson-8">
+            <div class="title"><span>8. Persistence and advanced systems</span><span class="badge" data-default-badge="L8">L8</span></div>
+            <div class="subtitle">Rollouts, state DB, trace, multi-agent, guardian.</div>
+          </a>
+        </nav>
+      </section>
+    </aside>
+
+    <main class="main">
+      <section class="panel panel-strong hero" data-search="overview codex-rs rust workspace cargo thread session turn app-server tui exec">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">Repository snapshot inspected on 2026-04-30</span>
+            <h2>Understand codex-rs from the command line entrypoint all the way down to tool execution.</h2>
+            <p>
+              This guide is built for readers who do not know Rust. It explains the
+              codebase as a layered system: workspace, crates, binaries, protocols,
+              thread lifecycle, turn execution, tool dispatch, persistence, and the
+              advanced systems that make Codex feel like Codex.
+            </p>
+            <p>
+              The crucial architectural idea is this: the Rust implementation is not one
+              giant CLI. It is a workspace of many crates, with a modern app-server layer
+              in the middle, multiple clients on top, and a deep core session engine below.
+            </p>
+            <div class="chip-row">
+              <span class="chip"><strong>Surface</strong> `codex`, `codex exec`, TUI, app-server</span>
+              <span class="chip"><strong>Core runtime</strong> `ThreadManager` -> `CodexThread` -> `Codex` -> `Session`</span>
+              <span class="chip"><strong>Persistence</strong> rollout files + SQLite state</span>
+              <span class="chip"><strong>Extension model</strong> tools, skills, MCP, plugins, multi-agent</span>
+            </div>
+          </div>
+
+          <div class="hero-card">
+            <h3>If you only remember five things</h3>
+            <div class="flow">
+              <div class="flow-step" data-step="1">
+                <strong>`codex-rs` is a Cargo workspace, not a single app.</strong>
+                <p>Most folders are separate crates with a narrow responsibility.</p>
+              </div>
+              <div class="flow-step" data-step="2">
+                <strong>The app-server is the central protocol boundary.</strong>
+                <p>TUI and exec increasingly act as clients of a shared RPC/event runtime.</p>
+              </div>
+              <div class="flow-step" data-step="3">
+                <strong>A live conversation is owned by `ThreadManager` and represented by `CodexThread`.</strong>
+                <p>That thread wraps a `Codex` queue-pair and a long-lived `Session`.</p>
+              </div>
+              <div class="flow-step" data-step="4">
+                <strong>`run_turn` is the heart of execution.</strong>
+                <p>It builds context, calls the model, executes tools, streams events, and persists output.</p>
+              </div>
+              <div class="flow-step" data-step="5">
+                <strong>Permissions are explicit data, not hidden side effects.</strong>
+                <p>Thread/turn APIs select permission profiles, approvals, environments, and tool visibility deliberately.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="value">105</div>
+            <div class="label">Workspace members declared in <code>codex-rs/Cargo.toml</code></div>
+          </div>
+          <div class="stat">
+            <div class="value">2</div>
+            <div class="label">Main protocol families: internal queue protocol and app-server JSON-RPC</div>
+          </div>
+          <div class="stat">
+            <div class="value">4</div>
+            <div class="label">Core user-facing surfaces: `codex`, TUI, exec, app-server</div>
+          </div>
+          <div class="stat">
+            <div class="value">8</div>
+            <div class="label">Lesson modules with quizzes and layered drill-down</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel section" id="ladder" data-search="five levels deep ladder architecture drill down thread manager session turn tool router">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Architecture ladder</span>
+            <h2 class="section-title">Seven levels of depth</h2>
+            <p class="section-summary">
+              Use this if you want a top-down mental model before reading the full lessons.
+              The levels are nested; each one explains the layer directly below it.
+            </p>
+          </div>
+        </div>
+        <div class="ladder-shell">
+          <div id="ladder-list" class="ladder-list"></div>
+          <div id="ladder-detail" class="ladder-detail"></div>
+        </div>
+      </section>
+
+      <section id="lesson-1" class="panel section lesson" data-lesson-id="lesson-1" data-search="lesson workspace rust cargo crate module lib.rs main.rs struct enum trait result option async arc mutex">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 1</span>
+            <h2 class="section-title">Workspace shape and the Rust you need to read it</h2>
+            <p class="section-summary">
+              Before looking at behavior, learn how to navigate the repository and how to decode
+              the most important Rust building blocks that appear everywhere else.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-1">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-7 stack">
+            <h3>How this repository is organized</h3>
+            <p>
+              <strong>`codex-rs` is a Cargo workspace.</strong> In Rust, a workspace is a single repository that
+              contains many packages and lets them share dependency versions, tooling, and build configuration.
+              The root workspace file is <code>codex-rs/Cargo.toml</code>, and it currently declares
+              <strong>105 member crates</strong>.
+            </p>
+            <p>
+              The naming convention matters: folder names like <code>core/</code>, <code>tui/</code>, and
+              <code>app-server/</code> become crates named <code>codex-core</code>, <code>codex-tui</code>,
+              and <code>codex-app-server</code>. That is why Cargo dependencies refer to the prefixed names even
+              when the folder omits the prefix.
+            </p>
+            <div class="callout ok">
+              <h3>High-confidence mental model</h3>
+              <p>
+                Think of the workspace as a platform. It is not “the TUI crate plus some helpers.”
+                The platform has protocol crates, client crates, execution/sandbox crates, persistence crates,
+                and extension crates.
+              </p>
+            </div>
+          </article>
+
+          <article class="lesson-card span-5 stack">
+            <h3>Crate clusters to recognize immediately</h3>
+            <ul>
+              <li><strong>Surfaces:</strong> <code>codex-cli</code>, <code>codex-tui</code>, <code>codex-exec</code>, <code>codex-app-server</code></li>
+              <li><strong>Protocols:</strong> <code>codex-protocol</code>, <code>codex-app-server-protocol</code></li>
+              <li><strong>Core runtime:</strong> <code>codex-core</code>, <code>codex-tools</code>, <code>codex-mcp</code></li>
+              <li><strong>Execution + sandbox:</strong> <code>codex-exec-server</code>, <code>codex-sandboxing</code>, <code>codex-shell-command</code></li>
+              <li><strong>Persistence:</strong> <code>codex-rollout</code>, <code>codex-state</code>, <code>codex-thread-store</code></li>
+              <li><strong>Model/provider layer:</strong> <code>codex-model-provider</code>, <code>codex-models-manager</code></li>
+            </ul>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: crate, module, binary, library</h3>
+            <ul>
+              <li><strong>Crate:</strong> a compiled package. One folder with one <code>Cargo.toml</code> is usually one crate.</li>
+              <li><strong>Library crate:</strong> exposes reusable code from <code>src/lib.rs</code>.</li>
+              <li><strong>Binary crate:</strong> executable entrypoint from <code>src/main.rs</code>.</li>
+              <li><strong>Module:</strong> a namespace inside a crate, usually a file or folder under <code>src/</code>.</li>
+              <li><strong>`pub`:</strong> makes a thing visible outside its module.</li>
+            </ul>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: the types you will keep seeing</h3>
+            <ul>
+              <li><strong>`struct`:</strong> a named record of fields, like an object with only data.</li>
+              <li><strong>`enum`:</strong> a tagged union. One value can be one of several named variants.</li>
+              <li><strong>`impl`:</strong> methods attached to a type.</li>
+              <li><strong>`Option&lt;T&gt;`:</strong> either <code>Some(value)</code> or <code>None</code>.</li>
+              <li><strong>`Result&lt;T, E&gt;`:</strong> either <code>Ok(value)</code> or <code>Err(error)</code>.</li>
+              <li><strong>`Arc&lt;T&gt;`:</strong> shared ownership of the same object across tasks.</li>
+              <li><strong>`Mutex&lt;T&gt;`:</strong> a lock around mutable shared state.</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>What to read first when opening a new Rust crate</h3>
+            <div class="flow">
+              <div class="flow-step" data-step="1">
+                <strong>Open <code>Cargo.toml</code>.</strong>
+                <p>It tells you the crate name, whether it is a library or binary, and its direct dependencies.</p>
+              </div>
+              <div class="flow-step" data-step="2">
+                <strong>Open <code>src/main.rs</code> if it exists.</strong>
+                <p>That shows the executable entrypoint and how the crate starts.</p>
+              </div>
+              <div class="flow-step" data-step="3">
+                <strong>Open <code>src/lib.rs</code>.</strong>
+                <p>This is the public face of a library crate and a fast way to see the module map.</p>
+              </div>
+              <div class="flow-step" data-step="4">
+                <strong>Find the main public types and functions.</strong>
+                <p>For codex-rs, these are usually things like <code>run_main</code>, <code>ThreadManager</code>, <code>Session</code>, or a protocol struct.</p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: why the repo resists adding new code to <code>codex-core</code></span>
+            <span class="details-label">Design pressure</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              The repository instructions explicitly warn against letting <code>codex-core</code> become a dumping ground.
+              That tells you the maintainers think in terms of crate boundaries as architecture, not just package management.
+            </p>
+            <p>
+              As you read the code, notice the repeated extraction of functionality into crates such as
+              <code>codex-app-server-protocol</code>, <code>codex-tools</code>, <code>codex-exec-server</code>,
+              <code>codex-rollout</code>, and <code>codex-state</code>. That is a deliberate strategy to stop core logic,
+              UI logic, protocol types, and persistence logic from collapsing into a single unreviewable unit.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-1">
+          <h4>Lesson 1 checkpoint</h4>
+          <div class="quiz-question" data-answer="b">
+            <p>Which file is the workspace-level inventory of member crates?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-1-q1" value="a" /> <span><code>README.md</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-1-q1" value="b" /> <span><code>codex-rs/Cargo.toml</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-1-q1" value="c" /> <span><code>codex-rs/core/src/lib.rs</code></span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>codex-rs/Cargo.toml</strong>. That is where the workspace members and shared dependencies are declared.</div>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <p>In Rust, what does <code>Option&lt;T&gt;</code> represent?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-1-q2" value="a" /> <span>A background task handle</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-1-q2" value="b" /> <span>An owned pointer shared across threads</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-1-q2" value="c" /> <span>A value that may or may not be present</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>a value that may or may not be present</strong>. The two variants are <code>Some(value)</code> and <code>None</code>.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-2" class="panel section lesson" data-lesson-id="lesson-2" data-search="entrypoint main run_main cli clap arg0 dispatch tui exec app-server codex">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 2</span>
+            <h2 class="section-title">Entry surfaces: how the binaries start</h2>
+            <p class="section-summary">
+              The Rust implementation exposes several different user-facing programs. They share a lot of infrastructure,
+              but they are not all the same executable path.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-2">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-7 stack">
+            <h3>The outermost surface is <code>codex</code></h3>
+            <p>
+              <code>codex-rs/cli/src/main.rs</code> defines the top-level multitool CLI. It uses
+              <strong>Clap</strong>, the standard Rust command-line parser, to build a single command that can dispatch
+              to interactive TUI mode, non-interactive exec mode, login commands, MCP commands, app-server, sandbox helpers,
+              update commands, and more.
+            </p>
+            <div class="code-box">
+<span class="comment">// High-level shape, simplified</span>
+MultitoolCli {
+  config_overrides,
+  feature_toggles,
+  remote,
+  interactive,
+  subcommand: Option&lt;Subcommand&gt;
+}
+            </div>
+            <p>
+              Important subcommands include <code>Exec</code>, <code>Review</code>, <code>Mcp</code>,
+              <code>McpServer</code>, <code>AppServer</code>, <code>Sandbox</code>, and <code>Resume</code>.
+            </p>
+          </article>
+
+          <article class="lesson-card span-5 stack">
+            <h3>Key startup files</h3>
+            <div class="key-files">
+              <div class="file-pill">
+                <code>codex-rs/cli/src/main.rs</code>
+                <span>Top-level `codex` parser and command router.</span>
+              </div>
+              <div class="file-pill">
+                <code>codex-rs/exec/src/lib.rs:221</code>
+                <span>Non-interactive `run_main`.</span>
+              </div>
+              <div class="file-pill">
+                <code>codex-rs/tui/src/lib.rs:682</code>
+                <span>Interactive TUI `run_main`.</span>
+              </div>
+              <div class="file-pill">
+                <code>codex-rs/app-server/src/lib.rs:353</code>
+                <span>App-server bootstrap.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: what a <code>main()</code> usually does here</h3>
+            <ul>
+              <li>Parse CLI arguments with Clap.</li>
+              <li>Resolve config overrides.</li>
+              <li>Set up logging/telemetry.</li>
+              <li>Delegate to an async <code>run_main(...)</code> function.</li>
+              <li>Return <code>Result&lt;(), anyhow::Error&gt;</code> so failures can bubble upward cleanly.</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>What <code>codex-arg0</code> is doing</h3>
+            <p>
+              Several binaries use <code>arg0_dispatch_or_else</code> from <code>codex-arg0</code>.
+              That means the program can change behavior based on the executable name it was invoked as.
+            </p>
+            <p>
+              This lets the project ship alias executables or special sandbox helper names without having to duplicate
+              a totally separate codebase for each one.
+            </p>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>Boot path comparison</h3>
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Surface</th>
+                  <th>Primary job</th>
+                  <th>Boot characteristic</th>
+                  <th>Why it exists</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>codex</code></td>
+                  <td>User-facing multitool entrypoint</td>
+                  <td>Parses subcommands and forwards to the right crate</td>
+                  <td>One command users can install and remember</td>
+                </tr>
+                <tr>
+                  <td><code>codex-tui</code></td>
+                  <td>Fullscreen terminal UI</td>
+                  <td>Starts app-server client, bootstraps thread, runs event/render loop</td>
+                  <td>Interactive chat, approvals, thread management, rich status UI</td>
+                </tr>
+                <tr>
+                  <td><code>codex-exec</code></td>
+                  <td>Headless automation surface</td>
+                  <td>Starts app-server client, emits human or JSONL output</td>
+                  <td>Scripting, CI, non-interactive tasks</td>
+                </tr>
+                <tr>
+                  <td><code>codex-app-server</code></td>
+                  <td>Long-lived JSON-RPC runtime</td>
+                  <td>Starts transport loops, message processor, thread manager</td>
+                  <td>Shared backend for UIs and integrations</td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: why TUI and exec are not “just thin wrappers”</span>
+            <span class="details-label">Client behavior</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              They are clients, but they still own substantial surface-specific logic. The TUI owns render state,
+              keyboard handling, overlays, slash-command UX, transcript formatting, and status panes. Exec owns
+              human-output and JSONL-output processors. What they increasingly do <em>not</em> own is the authoritative
+              thread/turn protocol and lifecycle.
+            </p>
+            <p>
+              That lifecycle is being centralized through the app-server contract so multiple surfaces can rely on the
+              same semantics.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-2">
+          <h4>Lesson 2 checkpoint</h4>
+          <div class="quiz-question" data-answer="a">
+            <p>Which crate is the top-level command router for the <code>codex</code> binary?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-2-q1" value="a" /> <span><code>codex-cli</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-2-q1" value="b" /> <span><code>codex-tui</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-2-q1" value="c" /> <span><code>codex-protocol</code></span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>codex-cli</strong>. It parses the multitool CLI and forwards to the right subcommand.</div>
+          </div>
+          <div class="quiz-question" data-answer="c">
+            <p>What is <code>codex-arg0</code> mainly for?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-2-q2" value="a" /> <span>Generating rollout trace files</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-2-q2" value="b" /> <span>Loading TOML configuration</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-2-q2" value="c" /> <span>Changing behavior based on the invoked executable name</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>changing behavior based on the invoked executable name</strong>. That supports alias binaries and sandbox helper roles.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-3" class="panel section lesson" data-lesson-id="lesson-3" data-search="protocol submission op event eventmsg thread turn item json rpc app-server protocol vocabulary">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 3</span>
+            <h2 class="section-title">Vocabulary and protocols: two overlapping languages</h2>
+            <p class="section-summary">
+              codex-rs has both an older internal queue protocol and a newer app-server RPC protocol.
+              They overlap, but they are not identical.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-3">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="api-shell">
+          <div class="tabs">
+            <button class="tab active" data-tab="tab-internal">Internal queue protocol</button>
+            <button class="tab" data-tab="tab-external">App-server RPC</button>
+            <button class="tab" data-tab="tab-mapping">Vocabulary mapping</button>
+          </div>
+
+          <div id="tab-internal" class="tab-panel active">
+            <article class="lesson-card span-6 stack">
+              <h3>What lives in <code>codex-protocol</code></h3>
+              <p>
+                <code>codex-rs/protocol/src/protocol.rs</code> defines the internal queue contract used by the core engine:
+                <code>Submission</code> at line 129, <code>Op</code> at line 407, <code>Event</code> at line 1303,
+                and <code>EventMsg</code> at line 1316.
+              </p>
+              <div class="code-box">
+Submission {
+  id,
+  op,
+  trace
+}
+
+Event {
+  id,
+  msg
+}
+              </div>
+              <p>
+                Think of this as the native message language of the core runtime. The UI or service submits operations,
+                and the core emits structured events back.
+              </p>
+            </article>
+
+            <article class="primer span-6 rust-primer">
+              <h3>Rust primer: enum-driven protocols</h3>
+              <p>
+                Rust often models protocols with <code>enum</code>s rather than stringly typed objects.
+                Instead of “some JSON with a type field,” you get an enum variant like
+                <code>Op::UserInput</code> or <code>EventMsg::TurnComplete</code>.
+              </p>
+              <p>
+                This catches protocol mistakes at compile time inside Rust code.
+              </p>
+            </article>
+          </div>
+
+          <div id="tab-external" class="tab-panel">
+            <article class="lesson-card span-6 stack">
+              <h3>What lives in <code>codex-app-server-protocol</code></h3>
+              <p>
+                The app-server protocol crate defines the external request/response/notification schema.
+                The most important user-driving request types are <code>ThreadStartParams</code>
+                at line 3547 and <code>TurnStartParams</code> at line 5483 of
+                <code>codex-rs/app-server-protocol/src/protocol/v2.rs</code>.
+              </p>
+              <div class="code-box">
+thread/start  -> create or re-open a conversation shell
+turn/start    -> submit input to a thread
+thread/list   -> enumerate stored threads
+thread/read   -> read one thread without resuming it
+turn/interrupt -> cancel an in-flight turn
+              </div>
+              <p>
+                This contract is JSON-RPC 2.0 shaped: requests, responses, notifications, and server-to-client approval requests.
+              </p>
+            </article>
+
+            <article class="lesson-card span-6 stack">
+              <h3>What JSON-RPC means here</h3>
+              <ul>
+                <li><strong>Request:</strong> client asks the server to do something, like <code>thread/start</code>.</li>
+                <li><strong>Response:</strong> server replies once, usually immediately.</li>
+                <li><strong>Notification:</strong> server pushes progress updates like <code>turn/completed</code> or <code>item/completed</code>.</li>
+                <li><strong>Server request:</strong> the server can also ask the client for approval or user input.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div id="tab-mapping" class="tab-panel">
+            <article class="lesson-card span-12 stack">
+              <h3>How the vocabularies line up</h3>
+              <table class="compare-table">
+                <thead>
+                  <tr>
+                    <th>Concept</th>
+                    <th>Internal/core language</th>
+                    <th>App-server language</th>
+                    <th>Important nuance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Long-lived conversation container</td>
+                    <td><code>Session</code></td>
+                    <td><code>Thread</code></td>
+                    <td>These are close conceptually, but not literally the same type.</td>
+                  </tr>
+                  <tr>
+                    <td>User-facing input cycle</td>
+                    <td>Submission of <code>Op::UserInput</code> / <code>Op::UserInputWithTurnContext</code></td>
+                    <td><code>turn/start</code></td>
+                    <td>The app-server request is translated into a core op.</td>
+                  </tr>
+                  <tr>
+                    <td>Progress output</td>
+                    <td><code>EventMsg</code></td>
+                    <td><code>ServerNotification</code></td>
+                    <td>The app-server maps core events into externally stable notification types.</td>
+                  </tr>
+                  <tr>
+                    <td>One internal model/tool loop</td>
+                    <td><code>run_turn</code></td>
+                    <td>Usually exposed as a single app-server turn</td>
+                    <td>Externally it looks like one turn, but internally it may include multiple model-tool iterations.</td>
+                  </tr>
+                  <tr>
+                    <td>Transcript pieces</td>
+                    <td><code>RolloutItem</code>, <code>ResponseItem</code>, <code>TurnItem</code></td>
+                    <td><code>Item</code></td>
+                    <td>The app-server simplifies many internal details into the thread/turn/item model.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
+          </div>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: a precise runtime handoff</span>
+            <span class="details-label">Important</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              In the app-server layer, <code>turn/start</code> is not magic. The handler in
+              <code>codex-rs/app-server/src/codex_message_processor.rs</code> validates the turn overrides,
+              maps app-server <code>UserInput</code> items into core input items, and then submits either
+              <code>Op::UserInput</code> or <code>Op::UserInputWithTurnContext</code> to the target <code>CodexThread</code>.
+            </p>
+            <p>
+              That means the app-server is not bypassing the core queue model; it is translating into it.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-3">
+          <h4>Lesson 3 checkpoint</h4>
+          <div class="quiz-question" data-answer="b">
+            <p>Which crate defines the app-server v2 request and response types?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-3-q1" value="a" /> <span><code>codex-core</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-3-q1" value="b" /> <span><code>codex-app-server-protocol</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-3-q1" value="c" /> <span><code>codex-rollout</code></span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>codex-app-server-protocol</strong>. It defines the typed external RPC schema.</div>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <p>Is the external app-server “turn” always exactly the same as one internal model sampling round-trip?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-3-q2" value="a" /> <span>No. One user-visible turn can contain multiple internal model-tool iterations.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-3-q2" value="b" /> <span>Yes. They are identical concepts and implementations.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-3-q2" value="c" /> <span>Only in the TUI, but not in exec mode.</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>No</strong>. The external turn is the user-facing unit; internally, Codex may loop through multiple model/tool steps before that turn completes.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-4" class="panel section lesson" data-lesson-id="lesson-4" data-search="threadmanager codexthread codex session configuration sessionconfiguration ownership arc mutex watch queue channel start_thread resume fork">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 4</span>
+            <h2 class="section-title">The live runtime: `ThreadManager`, `CodexThread`, `Codex`, `Session`</h2>
+            <p class="section-summary">
+              This is the most important ownership chain in the codebase. If you understand this layer,
+              the rest of the runtime stops looking mysterious.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-4">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-8 stack">
+            <h3>The ownership chain</h3>
+            <div class="flow">
+              <div class="flow-step" data-step="1">
+                <strong><code>ThreadManager</code> owns all live threads.</strong>
+                <p>
+                  In <code>codex-rs/core/src/thread_manager.rs</code>, the manager keeps a map of
+                  <code>ThreadId -> Arc&lt;CodexThread&gt;</code> plus shared services like auth, models, environments,
+                  skills, plugins, and MCP.
+                </p>
+              </div>
+              <div class="flow-step" data-step="2">
+                <strong><code>CodexThread</code> is the thread-scoped façade.</strong>
+                <p>
+                  It exposes thread-level actions like <code>submit</code>, <code>next_event</code>,
+                  <code>steer_input</code>, and config snapshot access.
+                </p>
+              </div>
+              <div class="flow-step" data-step="3">
+                <strong><code>Codex</code> is the queue-pair wrapper.</strong>
+                <p>
+                  It owns the submission sender, event receiver, agent-status watch channel, and the underlying session.
+                </p>
+              </div>
+              <div class="flow-step" data-step="4">
+                <strong><code>Session</code> is the long-lived per-thread engine state.</strong>
+                <p>
+                  This is where config, mailbox, active turn, realtime conversation, services, hooks, goals,
+                  rollout recording, and shared session state live.
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Key methods to memorize</h3>
+            <div class="key-files">
+              <div class="file-pill">
+                <code>core/src/thread_manager.rs:522</code>
+                <span><code>start_thread</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/thread_manager.rs:609</code>
+                <span><code>resume_thread_with_history</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/thread_manager.rs:755</code>
+                <span><code>fork_thread</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/session/session.rs:333</code>
+                <span><code>Session::new</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/session/mod.rs:1303</code>
+                <span><code>update_settings</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/session/mod.rs:1618</code>
+                <span><code>send_event_raw</code></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>What `ThreadManager` centralizes</h3>
+            <ul>
+              <li>Live thread registry</li>
+              <li>Auth manager</li>
+              <li>Shared models manager</li>
+              <li>Environment manager</li>
+              <li>Skills manager + watcher</li>
+              <li>Plugins manager</li>
+              <li>MCP manager</li>
+              <li>Analytics event client</li>
+            </ul>
+            <p>
+              This makes it the “session runtime factory” for the whole process.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>What `SessionConfiguration` carries</h3>
+            <ul>
+              <li>Model and collaboration mode</li>
+              <li>Approval policy and reviewer</li>
+              <li>Canonical permission profile</li>
+              <li>Working directory and Codex home</li>
+              <li>Dynamic tools</li>
+              <li>Thread name and environments</li>
+              <li>Developer and user instructions</li>
+              <li>Service-tier, personality, compact prompt</li>
+            </ul>
+            <p>
+              The key point is that permissions and context are explicit session data, not spread across random globals.
+            </p>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: why you keep seeing <code>Arc&lt;...&gt;</code></h3>
+            <p>
+              Rust does not let you casually share mutable objects across tasks. When multiple async tasks need the same
+              long-lived object, the code usually wraps it in <code>Arc&lt;T&gt;</code> for shared ownership, then adds
+              a <code>Mutex</code>, <code>RwLock</code>, or channels around the pieces that actually change.
+            </p>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: channels and watches</h3>
+            <ul>
+              <li><strong>Submission sender:</strong> sends commands into the session loop.</li>
+              <li><strong>Event receiver:</strong> yields structured events back out.</li>
+              <li><strong><code>watch::Sender/Receiver</code>:</strong> tracks the latest status, such as agent state, without replaying the whole history.</li>
+            </ul>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: `Session::new` does real initialization work</span>
+            <span class="details-label">Startup details</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              <code>Session::new</code> is not a trivial constructor. It performs session persistence setup, state DB lookup,
+              history metadata loading, auth lookup, and MCP server resolution in parallel using <code>tokio::join!</code>.
+            </p>
+            <p>
+              It also builds session trace metadata, loads rules/skills/plugins, resolves the effective model, derives base
+              instructions, materializes dynamic tools, and then starts the background submission loop that processes future ops.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-4">
+          <h4>Lesson 4 checkpoint</h4>
+          <div class="quiz-question" data-answer="c">
+            <p>Which component actually owns the map of live threads?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-4-q1" value="a" /> <span><code>ChatWidget</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-4-q1" value="b" /> <span><code>Codex</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-4-q1" value="c" /> <span><code>ThreadManager</code></span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>ThreadManager</strong>. It is the process-level owner of live thread objects and the shared services they depend on.</div>
+          </div>
+          <div class="quiz-question" data-answer="b">
+            <p>What is the best description of <code>Codex</code> in this architecture?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-4-q2" value="a" /> <span>The public app-server JSON schema crate</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-4-q2" value="b" /> <span>A queue-pair wrapper around submissions, events, and a `Session`</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-4-q2" value="c" /> <span>The TUI renderer for chat messages</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>a queue-pair wrapper around submissions, events, and a Session</strong>. It is the direct conduit between callers and the session loop.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-5" class="panel section lesson" data-lesson-id="lesson-5" data-search="run_turn turn loop responseevent modelclient toolrouter context manager compaction stream deltas handle output session handlers">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 5</span>
+            <h2 class="section-title">Turn execution: what happens after you submit a prompt</h2>
+            <p class="section-summary">
+              This is the “agent loop” most people are trying to find when they ask how Codex works.
+              In codex-rs, the key implementation lives in <code>core/src/session/turn.rs</code>.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-5">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-8 stack">
+            <h3>The end-to-end sequence</h3>
+            <div class="flow">
+              <div class="flow-step" data-step="1">
+                <strong>A client submits user input.</strong>
+                <p>For app-server clients, this begins as <code>turn/start</code>. Internally it becomes <code>Op::UserInput</code> or <code>Op::UserInputWithTurnContext</code>.</p>
+              </div>
+              <div class="flow-step" data-step="2">
+                <strong>The session handler creates or updates turn context.</strong>
+                <p><code>user_input_or_turn_inner</code> validates overrides, creates a turn context, and either steers an active turn or spawns a new regular task.</p>
+              </div>
+              <div class="flow-step" data-step="3">
+                <strong><code>run_turn</code> prepares context.</strong>
+                <p>It may compact history, record context updates, inspect plugins and connectors, resolve skills, and compute turn-scoped instructions.</p>
+              </div>
+              <div class="flow-step" data-step="4">
+                <strong>The model is called.</strong>
+                <p>The session creates or reuses a model client session, sends the prompt/context/tools, and starts consuming streaming response events.</p>
+              </div>
+              <div class="flow-step" data-step="5">
+                <strong>Tool calls are parsed and executed.</strong>
+                <p>Function calls, MCP calls, local shell calls, and custom tools are routed through the tool system and their outputs are fed back into the loop.</p>
+              </div>
+              <div class="flow-step" data-step="6">
+                <strong>Streaming deltas are emitted to clients.</strong>
+                <p>Assistant text, reasoning text, tool progress, and completion items become events and notifications.</p>
+              </div>
+              <div class="flow-step" data-step="7">
+                <strong>Final output is recorded and persisted.</strong>
+                <p>Turn items are written to rollout storage, status is updated, token usage is tracked, and the turn completes.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Key files</h3>
+            <div class="key-files">
+              <div class="file-pill">
+                <code>core/src/session/handlers.rs</code>
+                <span>Turns app-server/core ops into session actions.</span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/session/turn.rs:136</code>
+                <span><code>run_turn</code></span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/stream_events_utils.rs</code>
+                <span>Maps model output into recorded items and deltas.</span>
+              </div>
+              <div class="file-pill">
+                <code>core/src/tools/router.rs</code>
+                <span>Chooses what a tool call means.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>Three jobs of <code>run_turn</code></h3>
+            <ul>
+              <li><strong>Build model-visible context:</strong> instructions, skills, plugins, permissions, prior history, dynamic tools.</li>
+              <li><strong>Run the model/tool loop:</strong> stream response items, execute tool calls, and continue when outputs create more work.</li>
+              <li><strong>Emit durable events:</strong> persist rollout items and deliver real-time updates to clients.</li>
+            </ul>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: async and cancellation</h3>
+            <p>
+              <code>run_turn</code> is an <code>async fn</code>, which means it returns a future that runs on Tokio’s async runtime.
+              Cancellation is explicit: many operations receive a <code>CancellationToken</code> so interrupts can stop a turn cleanly.
+            </p>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>One subtle but crucial point</h3>
+            <p>
+              A single turn is not “call model once, print answer.” The model may respond with tool calls, those tools may produce
+              outputs, and those outputs may require another model step. The loop continues until the model produces a final assistant
+              message and there is no more pending work to feed back in.
+            </p>
+            <div class="callout warn">
+              <h3>Why this matters for reading bugs</h3>
+              <p>
+                Many “why did the agent do X?” questions are really questions about a multi-stage turn.
+                You need to inspect the item stream, not only the final assistant text.
+              </p>
+            </div>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: where app-server input becomes a core turn</span>
+            <span class="details-label">Bridging detail</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              In <code>codex-rs/app-server/src/codex_message_processor.rs</code>, the <code>turn_start</code> handler loads
+              the target thread, validates overrides, converts v2 input items to core input items, and chooses between
+              <code>Op::UserInput</code> and <code>Op::UserInputWithTurnContext</code>.
+            </p>
+            <p>
+              That op is then submitted to the target <code>CodexThread</code> via <code>submit_with_trace</code>.
+              The core session loop does the rest.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-5">
+          <h4>Lesson 5 checkpoint</h4>
+          <div class="quiz-question" data-answer="c">
+            <p>What is the best description of <code>run_turn</code>?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-5-q1" value="a" /> <span>It only formats the final assistant message for the TUI.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-5-q1" value="b" /> <span>It only validates config and never calls the model.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-5-q1" value="c" /> <span>It is the core model/tool/event loop for a user turn.</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>it is the core model/tool/event loop for a user turn</strong>.</div>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <p>Can one user-visible turn include multiple internal model/tool iterations?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-5-q2" value="a" /> <span>Yes</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-5-q2" value="b" /> <span>No</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-5-q2" value="c" /> <span>Only if the user enabled JSON output</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>Yes</strong>. Tool calls and their outputs can lead to additional model steps before the turn ends.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-6" class="panel section lesson" data-lesson-id="lesson-6" data-search="tools toolrouter toolspec mcp sandbox permission profile approval guardian dynamic tools web search local shell image generation custom tool">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 6</span>
+            <h2 class="section-title">Tools, MCP, sandboxes, and approvals</h2>
+            <p class="section-summary">
+              This is the action layer: what the model is allowed to call, how those calls are interpreted,
+              and how Codex decides whether real side effects should proceed.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-6">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-6 stack">
+            <h3>Tool specs are model-visible contracts</h3>
+            <p>
+              In <code>codex-rs/tools/src/tool_spec.rs</code>, the workspace defines model-visible tool schemas like:
+            </p>
+            <ul>
+              <li><code>Function</code></li>
+              <li><code>Namespace</code></li>
+              <li><code>ToolSearch</code></li>
+              <li><code>LocalShell</code></li>
+              <li><code>ImageGeneration</code></li>
+              <li><code>WebSearch</code></li>
+              <li><code>Freeform</code> custom tools</li>
+            </ul>
+            <p>
+              These are what the model “sees” as callable capabilities.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3><code>ToolRouter</code> turns specs into behavior</h3>
+            <p>
+              <code>core/src/tools/router.rs</code> builds the actual turn-local router from the current config, MCP tools,
+              deferred tools, discoverable tools, and dynamic tools.
+            </p>
+            <p>
+              When a model response item contains a tool call, <code>ToolRouter::build_tool_call</code> decides whether it is:
+            </p>
+            <ul>
+              <li>a local function tool,</li>
+              <li>an MCP tool call,</li>
+              <li>a local shell execution,</li>
+              <li>a tool-search request,</li>
+              <li>or a freeform custom tool call.</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>MCP in the architecture</h3>
+            <ul>
+              <li><code>McpManager</code> resolves configured/effective servers from config and plugins.</li>
+              <li><code>codex-mcp</code> owns connection/runtime mechanics.</li>
+              <li>Sessions can expose MCP tools to the model and call them during turns.</li>
+              <li>The app-server also exposes direct MCP resource and tool RPCs.</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Permissions are data structures</h3>
+            <ul>
+              <li>Legacy fields: <code>sandbox</code> / <code>sandboxPolicy</code></li>
+              <li>Canonical field: <code>PermissionProfile</code></li>
+              <li>Thread and turn APIs can select or modify permission profiles</li>
+              <li>Session configuration stores the active permission profile and reviewer</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Approvals have multiple layers</h3>
+            <ul>
+              <li>User-facing approval prompts</li>
+              <li><code>request_user_input</code> tool questions</li>
+              <li>Permission adjustment requests</li>
+              <li>Guardian automatic approval review for certain on-request actions</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>Guardian review is a separate review system, not a boolean check</h3>
+            <p>
+              The <code>guardian</code> subsystem reconstructs a compact transcript, spawns or reuses a dedicated
+              review session, asks for strict JSON output, and fails closed if anything goes wrong.
+            </p>
+            <p>
+              That means auto-approval is itself implemented as an agentic review path with its own prompt,
+              model preference, timeout, transcript cursor, and circuit breaker for repeated denials.
+            </p>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: tagged unions are why tool calls stay readable</h3>
+            <p>
+              When you see a Rust <code>enum</code> like <code>ToolSpec</code> or <code>ToolPayload</code>,
+              each variant can carry different data. That is how the code cleanly represents “this tool call is a local shell call”
+              versus “this tool call is an MCP call.”
+            </p>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: `serde` keeps protocol types honest</h3>
+            <p>
+              <code>serde</code> is the Rust serialization framework used across this repo. It turns Rust structs and enums
+              into JSON and back again, which is why protocol crates can share exact request/response shapes with clients.
+            </p>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: parallel tools and deferred tools</span>
+            <span class="details-label">Advanced</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              The tool router distinguishes between tools that support parallel execution and tools that do not. For MCP tools,
+              parallel capability is configured per server. For local configured tools, parallel support is attached to the tool spec.
+            </p>
+            <p>
+              Deferred dynamic tools are also filtered from the model-visible set until they are intentionally loaded, which lets the
+              system advertise a controlled capability surface instead of eagerly exposing everything.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-6">
+          <h4>Lesson 6 checkpoint</h4>
+          <div class="quiz-question" data-answer="b">
+            <p>Which component decides how a model-emitted tool call should be interpreted and routed?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-6-q1" value="a" /> <span><code>RolloutRecorder</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-6-q1" value="b" /> <span><code>ToolRouter</code></span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-6-q1" value="c" /> <span><code>ChatWidget</code></span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>ToolRouter</strong>. It builds turn-local tool behavior from specs and runtime context.</div>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <p>Is guardian auto-approval review just a simple if-statement on the current command?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-6-q2" value="a" /> <span>No. It is a dedicated review flow with transcript reconstruction and strict output.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-6-q2" value="b" /> <span>Yes. It never consults any other context.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-6-q2" value="c" /> <span>Only on Windows.</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>No</strong>. Guardian review is implemented as its own review session and policy prompt flow.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-7" class="panel section lesson" data-lesson-id="lesson-7" data-search="app-server messageprocessor codexmessageprocessor appserverclient in-process remote tui app chatwidget exec event processor notifications backpressure">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 7</span>
+            <h2 class="section-title">App-server and clients: the shared middle layer</h2>
+            <p class="section-summary">
+              The modern architectural center of codex-rs is not the TUI. It is the app-server contract
+              and the clients that sit on top of it.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-7">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-6 stack">
+            <h3>What the app-server bootstraps</h3>
+            <p>
+              In <code>codex-rs/app-server/src/lib.rs</code>, <code>run_main_with_transport_options</code> creates the
+              environment manager, transport channels, outgoing router, config manager, feedback/telemetry pipeline,
+              and the message processor stack.
+            </p>
+            <p>
+              It explicitly uses two loops/tasks: a processor loop for incoming JSON-RPC and an outbound loop for writing
+              messages to connections.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>Message processing is layered</h3>
+            <ul>
+              <li><strong><code>MessageProcessor</code>:</strong> connection/session gating, initialize flow, config, FS, device keys, external agent config, and RPC orchestration.</li>
+              <li><strong><code>CodexMessageProcessor</code>:</strong> thread/turn/app/model/plugin/MCP behavior specific to Codex.</li>
+              <li><strong><code>ThreadManager</code>:</strong> actual live thread ownership below both processors.</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-8 stack">
+            <h3>Why the TUI talks to app-server even in process</h3>
+            <p>
+              <code>codex-app-server-client</code> provides an in-process client facade. It does not bypass app-server semantics;
+              it preserves the same request/response/event model while removing the process boundary.
+            </p>
+            <p>
+              That lets TUI and exec share the same protocol behavior while still enjoying cheap in-process calls when appropriate.
+            </p>
+            <div class="callout ok">
+              <h3>Important design choice</h3>
+              <p>
+                The in-process path still uses JSON-RPC result envelopes internally on purpose. The goal is to preserve one contract,
+                not invent a second private one.
+              </p>
+            </div>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Key client methods</h3>
+            <div class="key-files">
+              <div class="file-pill">
+                <code>app-server-client/src/lib.rs:637</code>
+                <span><code>request_typed</code></span>
+              </div>
+              <div class="file-pill">
+                <code>app-server-client/src/lib.rs:897</code>
+                <span><code>AppServerClient::next_event</code></span>
+              </div>
+              <div class="file-pill">
+                <code>tui/src/app_server_session.rs:322</code>
+                <span><code>start_thread</code></span>
+              </div>
+              <div class="file-pill">
+                <code>tui/src/app_server_session.rs:349</code>
+                <span><code>resume_thread</code></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>TUI-specific client logic</h3>
+            <p>
+              The TUI is built around three main layers:
+            </p>
+            <ul>
+              <li><strong><code>App</code>:</strong> top-level runtime loop and orchestration.</li>
+              <li><strong><code>AppServerSession</code>:</strong> typed request wrapper for the app-server.</li>
+              <li><strong><code>ChatWidget</code>:</strong> transcript rendering and event-driven history state.</li>
+            </ul>
+            <p>
+              The TUI keeps a canonical internal <code>ThreadSessionState</code> derived from app-server responses and notifications.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>Exec-specific client logic</h3>
+            <p>
+              Exec mode starts the same app-server/client machinery but swaps in event processors that render to either:
+            </p>
+            <ul>
+              <li>human-readable stderr/stdout output, or</li>
+              <li>JSONL event output for automation.</li>
+            </ul>
+            <p>
+              That is why exec mode still gets the full thread/turn/item lifecycle without needing TUI state.
+            </p>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>Backpressure handling is a real architectural concern</h3>
+            <p>
+              The in-process client explicitly classifies some events as lossless and others as best-effort.
+              Transcript deltas and completion notifications must be delivered even when the consumer is slow;
+              some progress events may be dropped with a lag marker instead.
+            </p>
+            <p>
+              This is an unusually strong sign of maturity in the architecture: the authors have already encountered
+              queue saturation and designed around it.
+            </p>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: exact thread/turn request translation</span>
+            <span class="details-label">Precise path</span>
+          </summary>
+          <div class="details-body">
+            <p>
+              <code>thread/start</code> in <code>CodexMessageProcessor</code> loads config overrides, selects environments,
+              calls <code>ThreadManager::start_thread_with_options</code>, snapshots the created thread, attaches a listener,
+              and sends both a response and a <code>thread/started</code> notification.
+            </p>
+            <p>
+              <code>turn/start</code> loads the thread, validates overrides, maps input, submits a core op to the thread,
+              records the resulting submission id as the turn id, and responds immediately with an in-progress turn shell.
+            </p>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-7">
+          <h4>Lesson 7 checkpoint</h4>
+          <div class="quiz-question" data-answer="b">
+            <p>What is the best description of <code>codex-app-server-client</code>?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-7-q1" value="a" /> <span>A replacement for the app-server protocol</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-7-q1" value="b" /> <span>A shared client facade that can speak to app-server in process or remotely</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-7-q1" value="c" /> <span>A crate that only the TUI can use</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>a shared client facade that can speak to app-server in process or remotely</strong>.</div>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <p>Why does the in-process client still preserve app-server semantics instead of inventing a private shortcut API?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-7-q2" value="a" /> <span>Because the project wants one behavioral contract across surfaces.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-7-q2" value="b" /> <span>Because Rust cannot call library code directly.</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-7-q2" value="c" /> <span>Because only JSON can represent threads.</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>one behavioral contract across surfaces</strong>. The in-process client removes the process boundary, not the protocol semantics.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="lesson-8" class="panel section lesson" data-lesson-id="lesson-8" data-search="rollout state sqlite persistence rollout trace multi-agent agentcontrol guardian context fragments hooks memory goals thread store">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Lesson 8</span>
+            <h2 class="section-title">Persistence and advanced systems</h2>
+            <p class="section-summary">
+              This is where the codebase stops being “a chat loop” and becomes an operating environment:
+              rollouts, SQLite state, rollout traces, multi-agent, goals, and context assembly.
+            </p>
+          </div>
+          <div class="section-tools">
+            <button class="mark-complete primary" data-lesson="lesson-8">Mark lesson complete</button>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <article class="lesson-card span-4 stack">
+            <h3>Rollout persistence</h3>
+            <p>
+              The <code>codex-rollout</code> crate handles session-file persistence and discovery.
+              It exposes concepts like session directories, archived session directories, cursors,
+              thread listing, and the <code>RolloutRecorder</code>.
+            </p>
+            <p>
+              This is the durable “what happened in this thread?” layer.
+            </p>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>SQLite state</h3>
+            <p>
+              The <code>codex-state</code> crate mirrors rollout metadata into SQLite-backed state.
+              The crate docs explicitly say it is intentionally small and focused: rollout scanning/backfill
+              lives in core, while the state crate owns the storage engine and runtime access.
+            </p>
+            <p>
+              This is how Codex tracks metadata like thread info, dynamic tools, goals, spawn edges,
+              device keys, and remote-control enrollment.
+            </p>
+          </article>
+
+          <article class="lesson-card span-4 stack">
+            <h3>Rollout trace</h3>
+            <p>
+              Rollout trace is an opt-in local diagnostic system. It records raw runtime evidence into a bundle
+              and later reduces it into a semantic graph.
+            </p>
+            <p>
+              The key design phrase from the docs is: <strong>observe first, interpret later</strong>.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>Multi-agent is rooted, not global</h3>
+            <p>
+              <code>AgentControl</code> is shared across a root thread tree. It is the control-plane handle for
+              spawning agents, delivering messages, tracking metadata, and routing completion envelopes back to parents.
+            </p>
+            <p>
+              This is important: the registry is scoped to a root session tree, not the whole process.
+            </p>
+          </article>
+
+          <article class="lesson-card span-6 stack">
+            <h3>Context assembly is modular</h3>
+            <p>
+              The <code>context/</code> and <code>context_manager/</code> modules show how Codex builds model-visible
+              instructions from many fragments:
+            </p>
+            <ul>
+              <li>permissions instructions</li>
+              <li>apps and plugins instructions</li>
+              <li>skills instructions</li>
+              <li>personality and collaboration-mode instructions</li>
+              <li>turn-aborted markers and subagent notices</li>
+              <li>hook-provided additional context</li>
+            </ul>
+          </article>
+
+          <article class="lesson-card span-12 stack">
+            <h3>Advanced systems worth knowing even if you do not need them yet</h3>
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Subsystem</th>
+                  <th>Why it exists</th>
+                  <th>Main files to inspect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Goals</td>
+                  <td>Long-running objective and budget tracking across a thread</td>
+                  <td><code>core/src/goals.rs</code>, app-server <code>thread/goal/*</code> RPCs</td>
+                </tr>
+                <tr>
+                  <td>Realtime conversation</td>
+                  <td>Text/audio interactive sessions beyond ordinary prompt/response turns</td>
+                  <td><code>core/src/realtime_*</code>, app-server realtime RPCs</td>
+                </tr>
+                <tr>
+                  <td>Guardian review</td>
+                  <td>Policy-aware automatic approval review</td>
+                  <td><code>core/src/guardian/*</code></td>
+                </tr>
+                <tr>
+                  <td>Rollout trace</td>
+                  <td>Deep debugging with raw evidence and reduced graphs</td>
+                  <td><code>rollout-trace/README.md</code></td>
+                </tr>
+                <tr>
+                  <td>External agent migration</td>
+                  <td>Bring external-agent artifacts into the Rust runtime</td>
+                  <td><code>app-server</code> external-agent config APIs</td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: why small crates matter here</h3>
+            <p>
+              In a language with strong compile-time boundaries, crate design is part of system design.
+              Splitting rollout, state, tools, protocol, and app-server into dedicated crates makes it easier
+              to enforce architecture through the type system and dependency graph.
+            </p>
+          </article>
+
+          <article class="primer span-6 rust-primer">
+            <h3>Rust primer: “best effort” and fail-closed behavior are explicit</h3>
+            <p>
+              You will often see the code spell out its safety posture. For example, rollout tracing is best effort
+              and must never break a session; guardian review fails closed; config overrides are validated before a turn
+              is accepted. This explicitness is a recurring Rust engineering style in the repo.
+            </p>
+          </article>
+        </div>
+
+        <details>
+          <summary>
+            <span>More depth: what persists where</span>
+            <span class="details-label">Persistence map</span>
+          </summary>
+          <div class="details-body">
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Storage layer</th>
+                  <th>Primary purpose</th>
+                  <th>Examples</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Rollout files</td>
+                  <td>Ordered durable history of thread activity</td>
+                  <td>session metadata, persisted events, thread items, response items</td>
+                </tr>
+                <tr>
+                  <td>SQLite state DB</td>
+                  <td>Queryable metadata and secondary indexes</td>
+                  <td>thread metadata, goals, dynamic tools, spawn edges</td>
+                </tr>
+                <tr>
+                  <td>Live in-memory session state</td>
+                  <td>Current active turn and runtime-only state</td>
+                  <td>mailbox, active realtime session, live hooks, pending approvals</td>
+                </tr>
+                <tr>
+                  <td>Rollout trace bundle</td>
+                  <td>Optional deep debug evidence</td>
+                  <td>raw payloads, semantic graph reduction, interaction edges</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+
+        <section class="quiz" data-quiz-id="quiz-8">
+          <h4>Lesson 8 checkpoint</h4>
+          <div class="quiz-question" data-answer="b">
+            <p>What is the main role of <code>codex-state</code>?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-8-q1" value="a" /> <span>Rendering the TUI transcript</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-8-q1" value="b" /> <span>Providing SQLite-backed metadata storage derived from rollout information</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-8-q1" value="c" /> <span>Running shell commands under sandbox policies</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>SQLite-backed metadata storage derived from rollout information</strong>.</div>
+          </div>
+          <div class="quiz-question" data-answer="a">
+            <p>What does the rollout trace system prioritize?</p>
+            <div class="quiz-options">
+              <label class="quiz-option"><input type="radio" name="quiz-8-q2" value="a" /> <span>Recording raw evidence first and interpreting it later</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-8-q2" value="b" /> <span>Replacing the normal thread persistence format entirely</span></label>
+              <label class="quiz-option"><input type="radio" name="quiz-8-q2" value="c" /> <span>Uploading telemetry to the server on every turn</span></label>
+            </div>
+            <div class="quiz-explanation">Correct answer: <strong>recording raw evidence first and interpreting it later</strong>. It is an opt-in local diagnostic path, not normal telemetry.</div>
+          </div>
+          <div class="control-row">
+            <button class="grade-quiz">Check answers</button>
+            <div class="quiz-result"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel section" id="glossary" data-search="glossary rust concepts crate module enum struct trait result option arc mutex channel serde tokio json rpc">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Appendix</span>
+            <h2 class="section-title">Rust glossary for this codebase</h2>
+            <p class="section-summary">
+              These are the concepts that will make the rest of the repo much easier to read.
+            </p>
+          </div>
+        </div>
+        <div class="glossary-grid">
+          <div class="glossary-item"><strong>crate</strong>A compiled Rust package. In this repo, most folders under <code>codex-rs/</code> are crates.</div>
+          <div class="glossary-item"><strong>module</strong>A namespace inside a crate, usually a file or folder under <code>src/</code>.</div>
+          <div class="glossary-item"><strong>struct</strong>A named record type with fields.</div>
+          <div class="glossary-item"><strong>enum</strong>A tagged union with named variants carrying different shapes of data.</div>
+          <div class="glossary-item"><strong>trait</strong>Rust’s interface-like abstraction.</div>
+          <div class="glossary-item"><strong>impl</strong>The block where a type’s methods are defined.</div>
+          <div class="glossary-item"><strong>Option&lt;T&gt;</strong>Value may exist (<code>Some</code>) or not (<code>None</code>).</div>
+          <div class="glossary-item"><strong>Result&lt;T, E&gt;</strong>Either success (<code>Ok</code>) or error (<code>Err</code>).</div>
+          <div class="glossary-item"><strong>async fn</strong>Function that returns a future and runs on an async runtime like Tokio.</div>
+          <div class="glossary-item"><strong>Arc&lt;T&gt;</strong>Atomically reference-counted shared ownership of a value.</div>
+          <div class="glossary-item"><strong>Mutex / RwLock</strong>Synchronization primitives for shared mutable state.</div>
+          <div class="glossary-item"><strong>channel</strong>A queue used to pass messages between tasks or components.</div>
+          <div class="glossary-item"><strong>serde</strong>The serialization framework used for JSON, TOML, and protocol types.</div>
+          <div class="glossary-item"><strong>Tokio</strong>The async runtime used by codex-rs for tasks, channels, and IO.</div>
+          <div class="glossary-item"><strong>JSON-RPC</strong>A request/response/notification wire protocol used by the app-server.</div>
+          <div class="glossary-item"><strong>workspace dependency</strong>A dependency version or path declared once at the workspace root and reused by member crates.</div>
+        </div>
+      </section>
+
+      <section class="panel section" id="reading-paths" data-search="reading path recommended files what to read next onboarding path tui exec app-server core">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Appendix</span>
+            <h2 class="section-title">Recommended reading paths</h2>
+            <p class="section-summary">
+              Pick a path depending on the kind of contributor or reader you want to be.
+            </p>
+          </div>
+        </div>
+        <div class="card-grid">
+          <article class="lesson-card span-4 stack">
+            <h3>30-minute orientation</h3>
+            <ul>
+              <li><code>codex-rs/Cargo.toml</code></li>
+              <li><code>codex-rs/README.md</code></li>
+              <li><code>codex-rs/cli/src/main.rs</code></li>
+              <li><code>codex-rs/tui/src/lib.rs</code></li>
+              <li><code>codex-rs/app-server/README.md</code></li>
+            </ul>
+          </article>
+          <article class="lesson-card span-4 stack">
+            <h3>Core-runtime path</h3>
+            <ul>
+              <li><code>codex-rs/core/src/lib.rs</code></li>
+              <li><code>codex-rs/core/src/thread_manager.rs</code></li>
+              <li><code>codex-rs/core/src/codex_thread.rs</code></li>
+              <li><code>codex-rs/core/src/session/session.rs</code></li>
+              <li><code>codex-rs/core/src/session/turn.rs</code></li>
+            </ul>
+          </article>
+          <article class="lesson-card span-4 stack">
+            <h3>Client/runtime boundary path</h3>
+            <ul>
+              <li><code>codex-rs/app-server-protocol/src/protocol/v2.rs</code></li>
+              <li><code>codex-rs/app-server/src/lib.rs</code></li>
+              <li><code>codex-rs/app-server/src/codex_message_processor.rs</code></li>
+              <li><code>codex-rs/app-server-client/src/lib.rs</code></li>
+              <li><code>codex-rs/tui/src/app_server_session.rs</code></li>
+            </ul>
+          </article>
+          <article class="lesson-card span-6 stack">
+            <h3>TUI-focused path</h3>
+            <ul>
+              <li><code>codex-rs/tui/src/lib.rs</code></li>
+              <li><code>codex-rs/tui/src/app.rs</code></li>
+              <li><code>codex-rs/tui/src/app_server_session.rs</code></li>
+              <li><code>codex-rs/tui/src/chatwidget.rs</code></li>
+              <li><code>codex-rs/tui/src/session_state.rs</code></li>
+            </ul>
+          </article>
+          <article class="lesson-card span-6 stack">
+            <h3>Tools and extension path</h3>
+            <ul>
+              <li><code>codex-rs/tools/src/tool_spec.rs</code></li>
+              <li><code>codex-rs/core/src/tools/router.rs</code></li>
+              <li><code>codex-rs/core/src/mcp.rs</code></li>
+              <li><code>codex-rs/docs/codex_mcp_interface.md</code></li>
+              <li><code>codex-rs/core/src/guardian/mod.rs</code></li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel section">
+        <div class="section-header">
+          <div class="section-title-group">
+            <span class="eyebrow">Source map</span>
+            <h2 class="section-title">Files this guide was anchored on</h2>
+            <p class="section-summary">
+              These are the main repository files inspected while building this deep dive.
+            </p>
+          </div>
+        </div>
+        <div class="key-files">
+          <div class="file-pill"><code>codex-rs/Cargo.toml</code><span>Workspace members and shared dependencies.</span></div>
+          <div class="file-pill"><code>codex-rs/README.md</code><span>High-level positioning of the Rust implementation.</span></div>
+          <div class="file-pill"><code>codex-rs/app-server/README.md</code><span>External thread/turn/item API and lifecycle.</span></div>
+          <div class="file-pill"><code>codex-rs/protocol/README.md</code><span>Internal protocol terminology.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/lib.rs</code><span>Core public surface and module map.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/thread_manager.rs</code><span>Thread lifecycle and shared managers.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/codex_thread.rs</code><span>Thread-scoped façade.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/session/mod.rs</code><span>`Codex`, session loop, event delivery.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/session/session.rs</code><span>`Session` initialization and configuration.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/session/turn.rs</code><span>Main turn execution loop.</span></div>
+          <div class="file-pill"><code>codex-rs/core/src/tools/router.rs</code><span>Tool routing and payload interpretation.</span></div>
+          <div class="file-pill"><code>codex-rs/protocol/src/protocol.rs</code><span>Internal queue protocol.</span></div>
+          <div class="file-pill"><code>codex-rs/app-server-protocol/src/protocol/v2.rs</code><span>External typed JSON-RPC schema.</span></div>
+          <div class="file-pill"><code>codex-rs/app-server-client/src/lib.rs</code><span>Shared app-server client facade.</span></div>
+          <div class="file-pill"><code>codex-rs/tui/src/app.rs</code><span>TUI orchestration.</span></div>
+          <div class="file-pill"><code>codex-rs/tui/src/chatwidget.rs</code><span>Transcript/event rendering surface.</span></div>
+          <div class="file-pill"><code>codex-rs/rollout/src/lib.rs</code><span>Session-file persistence.</span></div>
+          <div class="file-pill"><code>codex-rs/state/src/lib.rs</code><span>SQLite-backed metadata state.</span></div>
+          <div class="file-pill"><code>codex-rs/rollout-trace/README.md</code><span>Diagnostic trace architecture.</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const ladderData = [
+      {
+        id: "l0",
+        label: "Level 0",
+        title: "Workspace",
+        blurb: "The repo is a 105-member Cargo workspace with many small crates.",
+        summary:
+          "Start here if the repo feels overwhelming. The workspace is intentionally split into many crates so protocols, surfaces, persistence, and runtime logic are not all mixed together.",
+        keyTypes: ["workspace Cargo.toml", "crate boundaries", "shared dependencies"],
+        keyFiles: ["codex-rs/Cargo.toml", "codex-rs/README.md"],
+        rustNote: "A crate is Rust’s package/compilation unit. A workspace is a collection of crates.",
+        next: "Then study the entry surfaces."
+      },
+      {
+        id: "l1",
+        label: "Level 1",
+        title: "Entry surfaces",
+        blurb: "`codex`, TUI, exec, and app-server are different surfaces on the same platform.",
+        summary:
+          "The `codex` binary routes to subcommands. `codex-tui` and `codex-exec` are specialized clients. `codex-app-server` is the long-lived service runtime behind modern integrations.",
+        keyTypes: ["MultitoolCli", "run_main", "arg0 dispatch"],
+        keyFiles: ["codex-rs/cli/src/main.rs", "codex-rs/exec/src/lib.rs", "codex-rs/tui/src/lib.rs", "codex-rs/app-server/src/lib.rs"],
+        rustNote: "`main.rs` is an executable entrypoint. `run_main` is the real startup logic.",
+        next: "Then learn the two protocol layers."
+      },
+      {
+        id: "l2",
+        label: "Level 2",
+        title: "Protocols",
+        blurb: "There is an internal queue protocol and an external app-server RPC protocol.",
+        summary:
+          "The internal core protocol uses `Submission`, `Op`, `Event`, and `EventMsg`. The app-server protocol exposes threads, turns, items, requests, notifications, and approval prompts as JSON-RPC types.",
+        keyTypes: ["Submission", "Op", "EventMsg", "ThreadStartParams", "TurnStartParams"],
+        keyFiles: ["codex-rs/protocol/src/protocol.rs", "codex-rs/app-server-protocol/src/protocol/v2.rs"],
+        rustNote: "Enums are central here: they make protocol variants explicit and type-checked.",
+        next: "Then follow thread ownership into core."
+      },
+      {
+        id: "l3",
+        label: "Level 3",
+        title: "Thread lifecycle",
+        blurb: "`ThreadManager` creates, resumes, forks, and tracks live threads.",
+        summary:
+          "ThreadManager owns shared services and the registry of live threads. It creates `CodexThread` instances that wrap `Codex` queue-pairs and a `Session`.",
+        keyTypes: ["ThreadManager", "NewThread", "CodexThread", "ThreadConfigSnapshot"],
+        keyFiles: ["codex-rs/core/src/thread_manager.rs", "codex-rs/core/src/codex_thread.rs"],
+        rustNote: "`Arc<T>` lets multiple async tasks share the same thread object safely.",
+        next: "Then descend into `Codex` and `Session`."
+      },
+      {
+        id: "l4",
+        label: "Level 4",
+        title: "Codex and Session",
+        blurb: "A live thread wraps a queue-pair and a long-lived session engine.",
+        summary:
+          "`Codex` owns a submission sender, an event receiver, the current agent-status watch, and the session object. `Session` holds state, mailbox, services, and active-turn machinery.",
+        keyTypes: ["Codex", "Session", "SessionConfiguration", "SessionState"],
+        keyFiles: ["codex-rs/core/src/session/mod.rs", "codex-rs/core/src/session/session.rs"],
+        rustNote: "A session is a stateful async object guarded by mutexes and channels, not a singleton global.",
+        next: "Then look at the turn loop."
+      },
+      {
+        id: "l5",
+        label: "Level 5",
+        title: "Turn loop",
+        blurb: "`run_turn` is the core model/tool/event loop.",
+        summary:
+          "A turn prepares context, may compact history, resolves tools/skills/plugins, streams model events, executes tool calls, persists items, and completes when the model has no more work to do.",
+        keyTypes: ["run_turn", "TurnContext", "ModelClientSession", "ResponseEvent"],
+        keyFiles: ["codex-rs/core/src/session/turn.rs", "codex-rs/core/src/session/handlers.rs"],
+        rustNote: "Async cancellation, streaming, and event emission are explicit parts of the design.",
+        next: "Then inspect tools and permissions."
+      },
+      {
+        id: "l6",
+        label: "Level 6",
+        title: "Tools and permissions",
+        blurb: "Tool specs, tool routing, MCP, sandbox profiles, and approvals govern side effects.",
+        summary:
+          "The model sees tool specs. The router interprets tool calls. Permission profiles and approvals determine whether real system actions are allowed. Guardian adds policy-aware review.",
+        keyTypes: ["ToolSpec", "ToolRouter", "PermissionProfile", "GuardianReviewSessionManager"],
+        keyFiles: ["codex-rs/tools/src/tool_spec.rs", "codex-rs/core/src/tools/router.rs", "codex-rs/core/src/guardian/mod.rs"],
+        rustNote: "Enums and structs make the permission state explicit instead of burying it in ad hoc conditionals.",
+        next: "Then zoom out to app-server clients and persistence."
+      },
+      {
+        id: "l7",
+        label: "Level 7",
+        title: "Clients and advanced runtime",
+        blurb: "App-server, TUI, exec, persistence, trace, and multi-agent build the full platform.",
+        summary:
+          "The app-server exposes the shared contract; TUI and exec consume it. Rollouts and SQLite preserve history. Rollout trace explains failures. AgentControl coordinates spawned child threads.",
+        keyTypes: ["MessageProcessor", "AppServerClient", "RolloutRecorder", "StateRuntime", "AgentControl"],
+        keyFiles: ["codex-rs/app-server/src/lib.rs", "codex-rs/app-server-client/src/lib.rs", "codex-rs/rollout/src/lib.rs", "codex-rs/state/src/lib.rs"],
+        rustNote: "This is where crate boundaries pay off: UI, persistence, protocol, and runtime each remain separately inspectable.",
+        next: "Use the reading paths appendix to continue exploring."
+      }
+    ];
+
+    const ladderList = document.getElementById("ladder-list");
+    const ladderDetail = document.getElementById("ladder-detail");
+    let activeLadder = ladderData[0].id;
+
+    function renderLadder() {
+      ladderList.innerHTML = "";
+      for (const item of ladderData) {
+        const button = document.createElement("button");
+        button.className = "ladder-step" + (item.id === activeLadder ? " active" : "");
+        button.type = "button";
+        button.innerHTML = `
+          <small>${item.label}</small>
+          <strong>${item.title}</strong>
+          <span>${item.blurb}</span>
+        `;
+        button.addEventListener("click", () => {
+          activeLadder = item.id;
+          renderLadder();
+        });
+        ladderList.appendChild(button);
+      }
+
+      const current = ladderData.find((item) => item.id === activeLadder);
+      ladderDetail.innerHTML = `
+        <div class="chip-row">
+          <span class="chip"><strong>${current.label}</strong></span>
+          <span class="chip"><strong>Focus</strong> ${current.title}</span>
+        </div>
+        <h3>${current.title}</h3>
+        <p>${current.summary}</p>
+        <div class="ladder-columns">
+          <div class="mini-card">
+            <h4>Key types and functions</h4>
+            <ul>${current.keyTypes.map((text) => `<li>${text}</li>`).join("")}</ul>
+          </div>
+          <div class="mini-card">
+            <h4>Where to read</h4>
+            <ul>${current.keyFiles.map((text) => `<li><code>${text}</code></li>`).join("")}</ul>
+          </div>
+        </div>
+        <div class="mini-card">
+          <h4>If you are new to Rust</h4>
+          <p>${current.rustNote}</p>
+        </div>
+        <div class="mini-card">
+          <h4>Next move</h4>
+          <p>${current.next}</p>
+        </div>
+      `;
+    }
+
+    renderLadder();
+
+    const lessons = Array.from(document.querySelectorAll(".lesson"));
+    const lessonStateKey = "codex-rs-deep-dive-progress";
+    const navLinks = Array.from(document.querySelectorAll(".nav-link"));
+    const progressText = document.getElementById("progress-text");
+    const progressFill = document.getElementById("progress-fill");
+
+    function readLessonState() {
+      try {
+        return JSON.parse(localStorage.getItem(lessonStateKey) || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function writeLessonState(state) {
+      localStorage.setItem(lessonStateKey, JSON.stringify(state));
+    }
+
+    function updateLessonUI() {
+      const state = readLessonState();
+      let doneCount = 0;
+
+      for (const lesson of lessons) {
+        const id = lesson.dataset.lessonId;
+        const done = Boolean(state[id]);
+        if (done) {
+          doneCount += 1;
+        }
+
+        const button = lesson.querySelector(".mark-complete");
+        if (button) {
+          button.textContent = done ? "Completed" : "Mark lesson complete";
+          button.classList.toggle("primary", !done);
+        }
+
+        const navLink = navLinks.find((link) => link.dataset.target === lesson.id);
+        if (navLink) {
+          const badge = navLink.querySelector(".badge");
+          badge.classList.toggle("done", done);
+          badge.textContent = done ? "Done" : badge.dataset.defaultBadge;
+        }
+      }
+
+      progressText.textContent = `${doneCount} / ${lessons.length} complete`;
+      progressFill.style.width = `${(doneCount / lessons.length) * 100}%`;
+    }
+
+    document.querySelectorAll(".mark-complete").forEach((button) => {
+      button.addEventListener("click", () => {
+        const state = readLessonState();
+        const id = button.dataset.lesson;
+        state[id] = !state[id];
+        writeLessonState(state);
+        updateLessonUI();
+      });
+    });
+
+    updateLessonUI();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = entry.target.id;
+          const link = navLinks.find((item) => item.dataset.target === id);
+          if (!link) return;
+          if (entry.isIntersecting) {
+            navLinks.forEach((item) => item.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      },
+      { rootMargin: "-30% 0px -55% 0px", threshold: 0.01 }
+    );
+
+    lessons.forEach((lesson) => observer.observe(lesson));
+
+    const searchInput = document.getElementById("search");
+    const searchableSections = Array.from(document.querySelectorAll("[data-search]"));
+
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.trim().toLowerCase();
+      for (const section of searchableSections) {
+        const haystack = (section.dataset.search + " " + section.textContent).toLowerCase();
+        const show = query === "" || haystack.includes(query);
+        section.classList.toggle("hidden-by-search", !show);
+      }
+    });
+
+    let detailsExpanded = false;
+    document.getElementById("toggle-details").addEventListener("click", () => {
+      detailsExpanded = !detailsExpanded;
+      document.querySelectorAll("details").forEach((detail) => {
+        detail.open = detailsExpanded;
+      });
+      document.getElementById("toggle-details").textContent = detailsExpanded ? "Collapse all details" : "Expand all details";
+    });
+
+    let primersVisible = true;
+    document.getElementById("toggle-primers").addEventListener("click", () => {
+      primersVisible = !primersVisible;
+      document.querySelectorAll(".rust-primer").forEach((primer) => {
+        primer.style.display = primersVisible ? "" : "none";
+      });
+      document.getElementById("toggle-primers").textContent = primersVisible ? "Hide Rust primers" : "Show Rust primers";
+    });
+
+    document.querySelectorAll(".grade-quiz").forEach((button) => {
+      button.addEventListener("click", () => {
+        const quiz = button.closest(".quiz");
+        const questions = Array.from(quiz.querySelectorAll(".quiz-question"));
+        let correct = 0;
+
+        questions.forEach((question) => {
+          const answer = question.dataset.answer;
+          const selected = question.querySelector("input:checked");
+          const explanation = question.querySelector(".quiz-explanation");
+          explanation.classList.add("visible");
+
+          if (selected && selected.value === answer) {
+            correct += 1;
+            question.style.borderColor = "rgba(34, 101, 58, 0.42)";
+            question.style.background = "rgba(34, 101, 58, 0.07)";
+          } else {
+            question.style.borderColor = "rgba(141, 44, 29, 0.42)";
+            question.style.background = "rgba(141, 44, 29, 0.05)";
+          }
+        });
+
+        const result = quiz.querySelector(".quiz-result");
+        result.textContent = `Score: ${correct} / ${questions.length}`;
+        result.style.color = correct === questions.length ? "var(--ok)" : "var(--warn)";
+      });
+    });
+
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.tab;
+        const shell = tab.closest(".api-shell");
+        shell.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+        shell.querySelectorAll(".tab-panel").forEach((item) => item.classList.remove("active"));
+        tab.classList.add("active");
+        shell.querySelector(`#${target}`).classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>
