@@ -884,6 +884,182 @@
       display: block;
     }
 
+    .diagram-shell {
+      display: grid;
+      gap: 16px;
+      padding: 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(184, 156, 125, 0.42);
+      background:
+        linear-gradient(180deg, rgba(255, 254, 250, 0.95), rgba(247, 240, 231, 0.92)),
+        rgba(255, 255, 255, 0.86);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    }
+
+    .diagram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .diagram-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(15, 94, 95, 0.08);
+      border: 1px solid rgba(15, 94, 95, 0.18);
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .diagram-caption {
+      margin: 0;
+      max-width: 60ch;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .diagram-board {
+      display: grid;
+      gap: 12px;
+    }
+
+    .diagram-row {
+      display: grid;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .columns-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .columns-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .columns-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .columns-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .diagram-arrow-row {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+
+    .diagram-arrow {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: rgba(163, 63, 21, 0.12);
+      border: 1px solid rgba(163, 63, 21, 0.28);
+      color: var(--accent);
+      font-size: 24px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .diagram-arrow-label {
+      max-width: 70ch;
+      text-align: center;
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .diagram-node {
+      min-height: 100%;
+      display: grid;
+      gap: 8px;
+      padding: 15px;
+      border-radius: 16px;
+      border: 1px solid rgba(184, 156, 125, 0.34);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .diagram-node small {
+      display: block;
+      color: var(--ink-soft);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .diagram-node strong {
+      display: block;
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .diagram-node span {
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .diagram-node code {
+      color: inherit;
+    }
+
+    .diagram-node.accent {
+      border-color: rgba(163, 63, 21, 0.34);
+      background: rgba(255, 246, 240, 0.92);
+    }
+
+    .diagram-node.teal {
+      border-color: rgba(15, 94, 95, 0.28);
+      background: rgba(240, 249, 249, 0.92);
+    }
+
+    .diagram-node.gold {
+      border-color: rgba(131, 97, 20, 0.28);
+      background: rgba(252, 248, 236, 0.92);
+    }
+
+    .diagram-node.green {
+      border-color: rgba(34, 101, 58, 0.28);
+      background: rgba(242, 249, 244, 0.92);
+    }
+
+    .diagram-note {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 94, 95, 0.18);
+      background: rgba(15, 94, 95, 0.06);
+      color: var(--ink-soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .diagram-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .diagram-side {
+      display: grid;
+      gap: 12px;
+    }
+
     .glossary-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -927,7 +1103,12 @@
       .hero-grid,
       .ladder-shell,
       .ladder-columns,
-      .glossary-grid {
+      .glossary-grid,
+      .diagram-split,
+      .columns-2,
+      .columns-3,
+      .columns-4,
+      .columns-5 {
         grid-template-columns: 1fr;
       }
 
@@ -1086,6 +1267,101 @@
               <div class="flow-step" data-step="5">
                 <strong>Permissions are explicit data, not hidden side effects.</strong>
                 <p>Thread/turn APIs select permission profiles, approvals, environments, and tool visibility deliberately.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram-shell">
+          <div class="diagram-header">
+            <div class="tight">
+              <span class="diagram-kicker">Architecture diagram</span>
+              <h3 id="diagram-system-map">System map: surfaces, shared contract, core runtime</h3>
+            </div>
+            <p class="diagram-caption">
+              Read this top to bottom. Requests descend through a shared thread/turn contract into the core runtime;
+              streamed notifications, approvals, and transcript items travel back up to the user-facing surfaces.
+            </p>
+          </div>
+          <div class="diagram-board">
+            <div class="diagram-row columns-4">
+              <div class="diagram-node accent">
+                <small>Surface</small>
+                <strong><code>codex</code> CLI</strong>
+                <span>Parses arguments and dispatches into TUI, exec, app-server, MCP, sandbox, and other modes.</span>
+              </div>
+              <div class="diagram-node accent">
+                <small>Surface</small>
+                <strong>TUI</strong>
+                <span>Owns the terminal UI, chat transcript state, approvals UI, and keyboard-driven workflow.</span>
+              </div>
+              <div class="diagram-node accent">
+                <small>Surface</small>
+                <strong>Exec</strong>
+                <span>Runs headless turns and renders either human output or JSONL events for automation.</span>
+              </div>
+              <div class="diagram-node accent">
+                <small>Surface</small>
+                <strong>Remote / IDE clients</strong>
+                <span>Integrations can talk to the same thread and turn model through the app-server boundary.</span>
+              </div>
+            </div>
+            <div class="diagram-arrow-row">
+              <div class="diagram-arrow">&darr;</div>
+              <div class="diagram-arrow-label">Increasingly, all surfaces converge on one shared request, response, and notification contract.</div>
+            </div>
+            <div class="diagram-row columns-2">
+              <div class="diagram-node teal">
+                <small>Client facade</small>
+                <strong><code>codex-app-server-client</code></strong>
+                <span>Preserves app-server semantics in process or remotely instead of inventing a private shortcut API.</span>
+              </div>
+              <div class="diagram-node teal">
+                <small>Shared middle layer</small>
+                <strong><code>codex-app-server</code></strong>
+                <span>Owns JSON-RPC transport, message processing, thread lifecycle requests, and outbound notifications.</span>
+              </div>
+            </div>
+            <div class="diagram-arrow-row">
+              <div class="diagram-arrow">&darr;</div>
+              <div class="diagram-arrow-label">The middle layer translates typed thread and turn requests into core runtime actions.</div>
+            </div>
+            <div class="diagram-row columns-3">
+              <div class="diagram-node gold">
+                <small>Process owner</small>
+                <strong><code>ThreadManager</code></strong>
+                <span>Registry of live threads plus shared auth, models, environment, skills, plugins, analytics, and MCP services.</span>
+              </div>
+              <div class="diagram-node gold">
+                <small>Thread facade</small>
+                <strong><code>CodexThread</code> and <code>Codex</code></strong>
+                <span>Queue-facing wrapper around submissions, event streams, status watches, and a long-lived session engine.</span>
+              </div>
+              <div class="diagram-node gold">
+                <small>Per-thread engine</small>
+                <strong><code>Session</code></strong>
+                <span>Stores config, rollout recorder, hooks, active turn state, dynamic tools, goals, and realtime conversation data.</span>
+              </div>
+            </div>
+            <div class="diagram-arrow-row">
+              <div class="diagram-arrow">&darr;</div>
+              <div class="diagram-arrow-label">Turns reach outward from the session into tools, model providers, and durable history.</div>
+            </div>
+            <div class="diagram-row columns-3">
+              <div class="diagram-node green">
+                <small>Action layer</small>
+                <strong>Tools, skills, MCP</strong>
+                <span>Function tools, local shell, web/image tools, custom tools, plugins, and MCP servers become callable capabilities.</span>
+              </div>
+              <div class="diagram-node green">
+                <small>Inference layer</small>
+                <strong>Model providers</strong>
+                <span>Sessions build model-visible context, stream responses, parse tool calls, and continue until the turn is complete.</span>
+              </div>
+              <div class="diagram-node green">
+                <small>Durability layer</small>
+                <strong>Rollout and SQLite state</strong>
+                <span>Thread history, metadata, diagnostic traces, and thread-tree state are written to durable storage.</span>
               </div>
             </div>
           </div>
@@ -1712,6 +1988,74 @@ turn/interrupt -> cancel an in-flight turn
             </div>
           </article>
 
+          <article class="span-12 diagram-shell">
+            <div class="diagram-header">
+              <div class="tight">
+                <span class="diagram-kicker">Architecture diagram</span>
+                <h3>Runtime ownership chain</h3>
+              </div>
+              <p class="diagram-caption">
+                Read this left to right. A process owns many threads; each thread owns one queue-facing wrapper;
+                each wrapper fronts a single long-lived session engine.
+              </p>
+            </div>
+            <div class="diagram-board">
+              <div class="diagram-row columns-4">
+                <div class="diagram-node accent">
+                  <small>Process scope</small>
+                  <strong><code>ThreadManager</code></strong>
+                  <span>Owns the live thread map and the shared factories and managers every thread depends on.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Thread scope</small>
+                  <strong><code>CodexThread</code></strong>
+                  <span>Public thread-facing facade with submit, next-event, steer-input, and snapshot-style methods.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Queue boundary</small>
+                  <strong><code>Codex</code></strong>
+                  <span>Submission sender, event receiver, status watch channels, and the bridge into the session loop.</span>
+                </div>
+                <div class="diagram-node teal">
+                  <small>Engine state</small>
+                  <strong><code>Session</code></strong>
+                  <span>Thread-scoped config, rollout recorder, active turn state, hooks, goals, instructions, and live conversation data.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label">The session is not isolated; it is constructed from shared managers and writes back into shared persistence systems.</div>
+              </div>
+              <div class="diagram-row columns-5">
+                <div class="diagram-node green">
+                  <small>Shared service</small>
+                  <strong>Auth</strong>
+                  <span>Effective identity, credentials lookup, and account-related runtime state.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Shared service</small>
+                  <strong>Models</strong>
+                  <span>Model resolution, provider routing, and model-session creation.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Shared service</small>
+                  <strong>Environment</strong>
+                  <span>Environment handles, remote execution contexts, and workspace-scoped runtime choices.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Shared service</small>
+                  <strong>Skills and plugins</strong>
+                  <span>Extra instructions, dynamic capability surfaces, and plugin-provided runtime behavior.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Shared service</small>
+                  <strong>MCP and persistence</strong>
+                  <span>MCP servers, rollout recording, and SQLite-backed thread metadata all connect through this layer.</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
           <article class="lesson-card span-6 stack">
             <h3>What `ThreadManager` centralizes</h3>
             <ul>
@@ -1881,6 +2225,90 @@ turn/interrupt -> cancel an in-flight turn
             </div>
           </article>
 
+          <article class="span-12 diagram-shell">
+            <div class="diagram-header">
+              <div class="tight">
+                <span class="diagram-kicker">Architecture diagram</span>
+                <h3>Turn execution loop</h3>
+              </div>
+              <p class="diagram-caption">
+                This is the central execution path. One user-visible turn may contain several internal model and tool
+                iterations before the turn is persisted and marked complete.
+              </p>
+            </div>
+            <div class="diagram-board">
+              <div class="diagram-row columns-3">
+                <div class="diagram-node accent">
+                  <small>Input</small>
+                  <strong><code>turn/start</code> or <code>Op::UserInput</code></strong>
+                  <span>A surface submits input against an existing thread and receives an immediate in-progress turn shell.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Dispatch</small>
+                  <strong>Session handlers</strong>
+                  <span>Validate overrides, create or update turn context, and decide whether to steer an active turn or spawn a new one.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Context</small>
+                  <strong>Turn setup</strong>
+                  <span>Resolve instructions, skills, plugins, tool visibility, compaction, and thread-scoped state needed for this turn.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label">Once the turn context exists, the session enters the core model and tool loop.</div>
+              </div>
+              <div class="diagram-row columns-3">
+                <div class="diagram-node gold">
+                  <small>Core loop</small>
+                  <strong><code>run_turn</code></strong>
+                  <span>Coordinates model input, tool routing, streaming events, persistence, and completion bookkeeping.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Inference</small>
+                  <strong>Model client session</strong>
+                  <span>Sends prompt, context, and tool schemas to the model provider and receives streaming response events.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Streaming</small>
+                  <strong>Response event parser</strong>
+                  <span>Converts deltas, reasoning, items, and tool-call intents into structured runtime data.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label">If the model emits tool calls, the loop routes them, executes them, and feeds their outputs back into another model step.</div>
+              </div>
+              <div class="diagram-row columns-4">
+                <div class="diagram-node teal">
+                  <small>Interpretation</small>
+                  <strong><code>ToolRouter</code></strong>
+                  <span>Decides which concrete tool path each tool call represents in this turn.</span>
+                </div>
+                <div class="diagram-node teal">
+                  <small>Execution</small>
+                  <strong>Tool runners</strong>
+                  <span>Run local shell, MCP, search, image, or custom tools under the session's permission model.</span>
+                </div>
+                <div class="diagram-node teal">
+                  <small>Feedback</small>
+                  <strong>Tool outputs</strong>
+                  <span>Structured tool results are appended to the turn and may trigger another model iteration.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Completion</small>
+                  <strong>Persist and notify</strong>
+                  <span>Rollout items, token usage, status updates, and client-facing notifications are finalized.</span>
+                </div>
+              </div>
+              <div class="diagram-note">
+                The crucial subtlety is the loop edge between tool outputs and the next model step. Bugs that look like
+                "the model did something odd" often come from misunderstanding which intermediate items existed between
+                the first prompt and the final assistant message.
+              </div>
+            </div>
+          </article>
+
           <article class="lesson-card span-6 stack">
             <h3>Three jobs of <code>run_turn</code></h3>
             <ul>
@@ -2043,6 +2471,84 @@ turn/interrupt -> cancel an in-flight turn
             </ul>
           </article>
 
+          <article class="span-12 diagram-shell">
+            <div class="diagram-header">
+              <div class="tight">
+                <span class="diagram-kicker">Architecture diagram</span>
+                <h3>Tool routing and approval path</h3>
+              </div>
+              <p class="diagram-caption">
+                The model does not directly "run a command." It emits a structured tool-call intent, and the runtime
+                routes that intent through tool visibility, permission profiles, approval logic, and the correct executor.
+              </p>
+            </div>
+            <div class="diagram-split">
+              <div class="diagram-board">
+                <div class="diagram-row">
+                  <div class="diagram-node accent">
+                    <small>Model output</small>
+                    <strong>Tool-call item</strong>
+                    <span>The response stream contains a typed tool invocation request rather than an immediate side effect.</span>
+                  </div>
+                </div>
+                <div class="diagram-arrow-row">
+                  <div class="diagram-arrow">&darr;</div>
+                  <div class="diagram-arrow-label">The current session configuration and visible tool set determine what this call is allowed to mean.</div>
+                </div>
+                <div class="diagram-row">
+                  <div class="diagram-node gold">
+                    <small>Interpreter</small>
+                    <strong><code>ToolRouter</code></strong>
+                    <span>Matches the tool name against local tools, MCP tools, deferred tools, discoverable tools, and custom tool definitions.</span>
+                  </div>
+                </div>
+                <div class="diagram-arrow-row">
+                  <div class="diagram-arrow">&darr;</div>
+                  <div class="diagram-arrow-label">Exactly one execution path is chosen for the call that survives validation.</div>
+                </div>
+                <div class="diagram-row columns-4">
+                  <div class="diagram-node teal">
+                    <small>Execution path</small>
+                    <strong>Local shell / function tools</strong>
+                    <span>Runs built-in tools or local command execution through the runtime's execution layer.</span>
+                  </div>
+                  <div class="diagram-node teal">
+                    <small>Execution path</small>
+                    <strong>MCP tools</strong>
+                    <span>Calls an MCP server through the MCP connection manager and session-scoped tool set.</span>
+                  </div>
+                  <div class="diagram-node teal">
+                    <small>Execution path</small>
+                    <strong>Search, image, other remote tools</strong>
+                    <span>Routes to model-visible capabilities that are implemented as specialized tool backends.</span>
+                  </div>
+                  <div class="diagram-node green">
+                    <small>Execution path</small>
+                    <strong>Freeform / custom tools</strong>
+                    <span>Runs custom tool definitions while still preserving the same tool-call and output contract.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="diagram-side">
+                <div class="diagram-node green">
+                  <small>Gate</small>
+                  <strong><code>PermissionProfile</code></strong>
+                  <span>Defines the canonical capability envelope for the thread or turn, replacing scattered implicit permission checks.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Gate</small>
+                  <strong>Approval requests</strong>
+                  <span>User approval prompts and permission adjustment flows can block or reshape a side effect before it runs.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Gate</small>
+                  <strong>Guardian review</strong>
+                  <span>Some on-request actions enter a dedicated review session that reconstructs context and fails closed on uncertainty.</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
           <article class="lesson-card span-12 stack">
             <h3>Guardian review is a separate review system, not a boolean check</h3>
             <p>
@@ -2153,6 +2659,84 @@ turn/interrupt -> cancel an in-flight turn
               <li><strong><code>CodexMessageProcessor</code>:</strong> thread/turn/app/model/plugin/MCP behavior specific to Codex.</li>
               <li><strong><code>ThreadManager</code>:</strong> actual live thread ownership below both processors.</li>
             </ul>
+          </article>
+
+          <article class="span-12 diagram-shell">
+            <div class="diagram-header">
+              <div class="tight">
+                <span class="diagram-kicker">Architecture diagram</span>
+                <h3>Client, app-server, and event-flow layers</h3>
+              </div>
+              <p class="diagram-caption">
+                Requests go down this stack; notifications, approvals, transcript items, and backpressure signals come back up.
+                The in-process client removes the process boundary but deliberately keeps the same contract.
+              </p>
+            </div>
+            <div class="diagram-board">
+              <div class="diagram-row columns-4">
+                <div class="diagram-node accent">
+                  <small>Client</small>
+                  <strong>TUI</strong>
+                  <span>Interactive surface with chat rendering, key handling, and thread/session UI state.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Client</small>
+                  <strong>Exec</strong>
+                  <span>Automation surface that consumes the same event stream but renders to stdout, stderr, or JSONL.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Client</small>
+                  <strong>IDE or connector</strong>
+                  <span>Remote or embedded integrations can issue the same typed thread and turn requests.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Client</small>
+                  <strong>Future surfaces</strong>
+                  <span>New clients can reuse the middle layer instead of reimplementing thread and turn semantics.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label">All of these surfaces rely on typed requests, typed responses, and a stream of notifications.</div>
+              </div>
+              <div class="diagram-row columns-2">
+                <div class="diagram-node teal">
+                  <small>Client facade</small>
+                  <strong><code>AppServerClient</code></strong>
+                  <span>Offers typed request helpers and <code>next_event</code> while preserving app-server semantics in process or over transport.</span>
+                </div>
+                <div class="diagram-node teal">
+                  <small>Server boundary</small>
+                  <strong><code>MessageProcessor</code> plus <code>CodexMessageProcessor</code></strong>
+                  <span>Validates initialization and config, translates app-server methods, and routes Codex-specific thread and turn actions.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label"><code>thread/start</code> becomes thread creation or resumption; <code>turn/start</code> becomes a core submission on the target thread.</div>
+              </div>
+              <div class="diagram-row columns-3">
+                <div class="diagram-node gold">
+                  <small>Ownership</small>
+                  <strong><code>ThreadManager</code></strong>
+                  <span>Finds, creates, resumes, and snapshots the thread object that will own the conversation.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Thread</small>
+                  <strong><code>CodexThread</code></strong>
+                  <span>Receives the submission, exposes event listeners, and keeps the thread-scoped facade stable for clients.</span>
+                </div>
+                <div class="diagram-node gold">
+                  <small>Execution</small>
+                  <strong><code>Session</code> and <code>run_turn</code></strong>
+                  <span>Actually performs the turn, generates transcript items, and emits streamed updates back to listeners.</span>
+                </div>
+              </div>
+              <div class="diagram-note">
+                The explicit lossless-versus-best-effort event split in the in-process client exists because this stream can be large.
+                Transcript-critical events must survive slow consumers; some progress signals may be coalesced or dropped with lag markers.
+              </div>
+            </div>
           </article>
 
           <article class="lesson-card span-8 stack">
@@ -2333,6 +2917,59 @@ turn/interrupt -> cancel an in-flight turn
             <p>
               The key design phrase from the docs is: <strong>observe first, interpret later</strong>.
             </p>
+          </article>
+
+          <article class="span-12 diagram-shell">
+            <div class="diagram-header">
+              <div class="tight">
+                <span class="diagram-kicker">Architecture diagram</span>
+                <h3>Durability and advanced-state layers</h3>
+              </div>
+              <p class="diagram-caption">
+                Not everything interesting about Codex is in the live turn loop. The runtime continuously writes evidence,
+                metadata, and thread-tree relationships into several durable systems with distinct responsibilities.
+              </p>
+            </div>
+            <div class="diagram-board">
+              <div class="diagram-row columns-2">
+                <div class="diagram-node accent">
+                  <small>Live runtime</small>
+                  <strong><code>Session</code> and turn execution</strong>
+                  <span>Creates transcript items, tool outputs, goals, and thread-scoped state while a conversation is active.</span>
+                </div>
+                <div class="diagram-node accent">
+                  <small>Thread tree</small>
+                  <strong><code>AgentControl</code> and root thread scope</strong>
+                  <span>Tracks parent-child agent relationships, spawn edges, completion routing, and rooted multi-agent metadata.</span>
+                </div>
+              </div>
+              <div class="diagram-arrow-row">
+                <div class="diagram-arrow">&darr;</div>
+                <div class="diagram-arrow-label">As turns progress, the runtime writes durable evidence into multiple stores optimized for different questions.</div>
+              </div>
+              <div class="diagram-row columns-4">
+                <div class="diagram-node green">
+                  <small>Persistent record</small>
+                  <strong>Rollout files</strong>
+                  <span>Durable session and thread history: what happened, in order, with items and archived thread directories.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Queryable metadata</small>
+                  <strong>SQLite state</strong>
+                  <span>Thread info, dynamic tools, goals, spawn edges, device keys, and enrollment state in a structured database.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Diagnostics</small>
+                  <strong>Rollout trace bundles</strong>
+                  <span>Raw runtime evidence first; later analysis reduces that evidence into a semantic graph for debugging.</span>
+                </div>
+                <div class="diagram-node green">
+                  <small>Derived state</small>
+                  <strong>Context and thread-store views</strong>
+                  <span>Higher-level reconstructions used for listing, loading, or reasoning about threads without rerunning the session.</span>
+                </div>
+              </div>
+            </div>
           </article>
 
           <article class="lesson-card span-6 stack">
