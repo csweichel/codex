@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "Codex",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "NODE_MAJOR": "22",
+      "RUST_TOOLCHAIN": "1.95.0"
+    }
+  },
+
+  "features": {
+    "ghcr.io/facebook/devcontainers/features/dotslash:latest": {}
+  },
+
+  "containerEnv": {
+    "RUST_BACKTRACE": "1",
+    "CARGO_TARGET_DIR": "${containerWorkspaceFolder}/codex-rs/target-devcontainer",
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
+
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "tamasfe.even-better-toml"]
+    }
+  }
+}
